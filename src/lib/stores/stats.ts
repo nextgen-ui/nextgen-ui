@@ -1,5 +1,7 @@
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import type { SystemStats } from '$lib/ipc';
+
+const HISTORY_LEN = 60; // 60 seconds of history
 
 export const systemStats = writable<SystemStats>({
   cpu_usage: 0,
@@ -13,6 +15,27 @@ export const systemStats = writable<SystemStats>({
   disk_read: 0,
   disk_write: 0,
 });
+
+// History rings
+export const cpuHistory   = writable<number[]>([]);
+export const netInHistory  = writable<number[]>([]);
+export const netOutHistory = writable<number[]>([]);
+export const memHistory   = writable<number[]>([]);
+
+function pushHistory(store: ReturnType<typeof writable<number[]>>, val: number) {
+  store.update((arr) => {
+    const next = [...arr, val];
+    return next.length > HISTORY_LEN ? next.slice(next.length - HISTORY_LEN) : next;
+  });
+}
+
+export function updateStats(s: SystemStats) {
+  systemStats.set(s);
+  pushHistory(cpuHistory,   s.cpu_usage);
+  pushHistory(netInHistory,  s.net_in / 1024);   // KB/s
+  pushHistory(netOutHistory, s.net_out / 1024);
+  pushHistory(memHistory,   (s.mem_used / s.mem_total) * 100);
+}
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
