@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+// ── PTY ──────────────────────────────────────────────────────────────────────
+
 export async function ptySpawn(sessionId: string, cols: number, rows: number) {
   return invoke<void>('pty_spawn', { sessionId, cols, rows });
 }
@@ -19,6 +21,8 @@ export async function onPtyOutput(
   return listen<{ session_id: string; data: string }>('pty_output', (e) => callback(e.payload));
 }
 
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
 export interface SystemStats {
   cpu_usage: number;
   cpu_per_core: number[];
@@ -36,4 +40,20 @@ export async function getSystemStats() {
 }
 export async function onSystemStats(callback: (stats: SystemStats) => void) {
   return listen<SystemStats>('system_stats', (e) => callback(e.payload));
+}
+
+// ── Processes ─────────────────────────────────────────────────────────────────
+
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu: number;
+  mem: number;
+  status: string;
+}
+export async function onProcessList(callback: (procs: ProcessInfo[]) => void) {
+  return listen<ProcessInfo[]>('process_list', (e) => callback(e.payload));
+}
+export async function killProcess(pid: number) {
+  return invoke<void>('kill_process', { pid });
 }

@@ -3,6 +3,7 @@
   import Terminal from '$lib/components/Terminal.svelte';
   import StatsPanel from '$lib/components/StatsPanel.svelte';
   import FileManager from '$lib/components/FileManager.svelte';
+  import ProcessMonitor from '$lib/components/ProcessMonitor.svelte';
   import HudBackground from '$lib/components/HudBackground.svelte';
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
 
@@ -13,6 +14,7 @@
   let bootText = '';
   let showThemePicker = false;
   let showFileManager = false;
+  let showProcesses = false;
   let clockInterval: ReturnType<typeof setInterval>;
   let uptimeInterval: ReturnType<typeof setInterval>;
 
@@ -39,6 +41,7 @@
     if (e.ctrlKey && e.key === 'w') { e.preventDefault(); closeTab(activeTab); }
     if (e.ctrlKey && e.key === 'f') { e.preventDefault(); toggleFullscreen(); }
     if (e.ctrlKey && e.key === 'b') { e.preventDefault(); showFileManager = !showFileManager; }
+    if (e.ctrlKey && e.key === 'p') { e.preventDefault(); showProcesses = !showProcesses; }
   }
 
   const bootLines = [
@@ -143,6 +146,9 @@
       <button class="icon-btn" on:click={() => showFileManager = !showFileManager}>
         {showFileManager ? '✕ FILES' : '◫ FILES'}
       </button>
+      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+P)">
+        {showProcesses ? '✕ PROCS' : '⬡ PROCS'}
+      </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
       <span class="uptime">UP {formatUptime(uptime)}</span>
@@ -179,6 +185,12 @@
         {/each}
       </div>
     </section>
+    {#if showProcesses}
+      <aside class="proc-section">
+        <ProcessMonitor />
+      </aside>
+    {/if}
+
     <aside class="stats-section">
       <StatsPanel />
     </aside>
