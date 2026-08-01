@@ -1,3 +1,5 @@
+mod config;
+mod fs;
 mod pty;
 mod stats;
 
@@ -14,6 +16,10 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_close,
             stats::get_system_stats,
+            config::get_config,
+            config::save_config,
+            fs::fs_list_dir,
+            fs::fs_home_dir,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
