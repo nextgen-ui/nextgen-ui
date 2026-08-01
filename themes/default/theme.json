@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "name": "Default",
+    "version": "1.0.0",
+    "author": "nextgen-ui",
+    "description": "Default dark sci-fi theme"
+  },
+  "colors": {
+    "background": "#0a0e1a",
+    "foreground": "#c8d8f0",
+    "accent":     "#00c8ff",
+    "accent_dim": "#006480",
+    "panel": {
+      "background": "#0d1220cc",
+      "border":     "#00c8ff44",
+      "header":     "#00c8ff"
+    },
+    "terminal": {
+      "background": "#060910",
+      "foreground": "#c8d8f0",
+      "cursor":     "#00c8ff",
+      "selection":  "#00c8ff33",
+      "black":      "#1a1e2e",
+      "red":        "#ff4c6a",
+      "green":      "#00ffb3",
+      "yellow":     "#ffcc00",
+      "blue":       "#00c8ff",
+      "magenta":    "#b06fff",
+      "cyan":       "#00e5cc",
+      "white":      "#c8d8f0"
+    }
+  },
+  "typography": {
+    "terminal_font": "JetBrains Mono, Fira Code, monospace",
+    "terminal_size": 14,
+    "ui_font":       "Inter, system-ui, sans-serif",
+    "ui_size":       13
+  },
+  "animation": {
+    "fps_cap":          60,
+    "scanlines":        true,
+    "scanline_opacity": 0.04,
+    "glow":             true,
+    "glow_intensity":   0.6,
+    "shader":           null
+  },
+  "layout": {
+    "stats_position":     "right",
+    "keyboard_visible":   false,
+    "panel_border_width": 1
+  }
+}

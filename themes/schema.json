@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "nextgen-ui theme",
+  "description": "Schema for nextgen-ui theme files",
+  "type": "object",
+  "required": ["meta", "colors", "typography", "animation"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["name", "version", "author"],
+      "properties": {
+        "name":        { "type": "string" },
+        "version":     { "type": "string" },
+        "author":      { "type": "string" },
+        "description": { "type": "string" },
+        "preview":     { "type": "string", "description": "Path to preview image" }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "required": ["background", "foreground", "accent", "panel", "terminal"],
+      "properties": {
+        "background":  { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "foreground":  { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "accent":      { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "accent_dim":  { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "panel": {
+          "type": "object",
+          "properties": {
+            "background": { "type": "string", "pattern": "^#[0-9a-fA-F]{6,8}$" },
+            "border":     { "type": "string", "pattern": "^#[0-9a-fA-F]{6,8}$" },
+            "header":     { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+          }
+        },
+        "terminal": {
+          "type": "object",
+          "properties": {
+            "background": { "type": "string" },
+            "foreground": { "type": "string" },
+            "cursor":     { "type": "string" },
+            "selection":  { "type": "string" },
+            "black":      { "type": "string" },
+            "red":        { "type": "string" },
+            "green":      { "type": "string" },
+            "yellow":     { "type": "string" },
+            "blue":       { "type": "string" },
+            "magenta":    { "type": "string" },
+            "cyan":       { "type": "string" },
+            "white":      { "type": "string" }
+          }
+        }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "properties": {
+        "terminal_font":  { "type": "string", "description": "Font family for terminal" },
+        "terminal_size":  { "type": "number", "minimum": 8, "maximum": 32 },
+        "ui_font":        { "type": "string", "description": "Font family for UI panels" },
+        "ui_size":        { "type": "number", "minimum": 10, "maximum": 24 }
+      }
+    },
+    "animation": {
+      "type": "object",
+      "properties": {
+        "fps_cap":          { "type": "number", "minimum": 15, "maximum": 120 },
+        "scanlines":        { "type": "boolean" },
+        "scanline_opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "glow":             { "type": "boolean" },
+        "glow_intensity":   { "type": "number", "minimum": 0, "maximum": 1 },
+        "shader":           { "type": "string", "description": "Path to WGSL shader file, optional" }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "properties": {
+        "stats_position":    { "type": "string", "enum": ["left", "right", "top", "bottom"] },
+        "keyboard_visible":  { "type": "boolean" },
+        "panel_border_width":{ "type": "number", "minimum": 0, "maximum": 4 }
+      }
+    }
+  }
+}
