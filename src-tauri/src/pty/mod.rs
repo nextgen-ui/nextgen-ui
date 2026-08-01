@@ -42,7 +42,14 @@ pub fn pty_spawn(
         .map_err(|e| e.to_string())?;
 
     let shell = default_shell();
-    let cmd = CommandBuilder::new(shell);
+    let mut cmd = CommandBuilder::new(&shell);
+
+    // PowerShell: disable the banner and use a clean prompt
+    #[cfg(target_os = "windows")]
+    if shell.to_lowercase().contains("powershell") {
+        cmd.args(["-NoLogo", "-NoExit"]);
+    }
+
     let _child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
@@ -109,7 +116,15 @@ pub fn pty_close(
 
 fn default_shell() -> String {
     #[cfg(target_os = "windows")]
-    { std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string()) }
+    {
+        // Prefer PowerShell Core (pwsh), fall back to Windows PowerShell
+        if std::path::Path::new("C:\\Program Files\\PowerShell\\7\\pwsh.exe").exists() {
+            return "C:\\Program Files\\PowerShell\\7\\pwsh.exe".to_string();
+        }
+        "powershell.exe".to_string()
+    }
     #[cfg(not(target_os = "windows"))]
-    { std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()) }
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
 }

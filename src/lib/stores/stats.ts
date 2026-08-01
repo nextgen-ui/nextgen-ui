@@ -7,7 +7,11 @@ export const systemStats = writable<SystemStats>({
   mem_used: 0,
   mem_total: 1,
   swap_used: 0,
-  swap_total: 1
+  swap_total: 1,
+  net_in: 0,
+  net_out: 0,
+  disk_read: 0,
+  disk_write: 0,
 });
 
 export function formatBytes(bytes: number): string {
