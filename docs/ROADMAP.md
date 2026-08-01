@@ -1,7 +1,7 @@
 # Roadmap
 
 **Project:** nextgen-ui  
-**Last updated:** 2026-06
+**Last updated:** 2026-08
 
 ---
 
@@ -14,132 +14,103 @@
 
 ---
 
-## Phase 1 — Skeleton `v0.1.0`
-
-**Goal:** A working terminal. Nothing fancy, everything functional.
+## Phase 1 — Skeleton `v0.1.0` ✅ DONE
 
 | Task | Status |
 |---|---|
-| Tauri 2 project scaffold | 🔲 |
-| Svelte 5 frontend scaffold | 🔲 |
-| IPC bridge — invoke() + events wired | 🔲 |
-| PTY manager (portable-pty) | 🔲 |
-| Basic terminal panel (no GPU yet) | 🔲 |
-| Tokio async runtime setup | 🔲 |
-| Basic system stats (CPU, RAM) via sysinfo | 🔲 |
-| Stats streamed to frontend via events | 🔲 |
-| TOML config file read/write | 🔲 |
-| CI workflow (build + test on push) | 🔲 |
-
-**Done when:** You can open nextgen-ui, see a working terminal, type commands, and see live CPU/RAM stats.
+| Tauri 2 project scaffold | ✅ |
+| Svelte 5 frontend scaffold | ✅ |
+| IPC bridge — invoke() + events wired | ✅ |
+| PTY manager (portable-pty) | ✅ |
+| Basic terminal panel | ✅ |
+| Tokio async runtime setup | ✅ |
+| Basic system stats (CPU, RAM) via sysinfo | ✅ |
+| Stats streamed to frontend via events | ✅ |
+| TOML config file read/write | ✅ |
+| CI workflow (build + test on push) | ✅ |
 
 ---
 
-## Phase 2 — GPU Renderer `v0.2.0`
-
-**Goal:** Terminal output rendered on the GPU. Smooth, fast, no jank.
+## Phase 2 — PTY + Stats Engine `v0.2.0` ✅ DONE
 
 | Task | Status |
 |---|---|
-| WebGPU glyph atlas built | 🔲 |
-| Terminal renderer ported to WebGPU | 🔲 |
-| WebGL fallback renderer | 🔲 |
-| Frame rate cap (60fps) with RAF budget | 🔲 |
-| Render loop pause on window hide/minimize | 🔲 |
-| Font rendering quality pass | 🔲 |
-| Benchmark vs Phase 1 (CPU/RAM delta) | 🔲 |
-
-**Done when:** Terminal renders at 60fps with GPU, idles at ~0% CPU when minimized.
+| PTY manager with PowerShell support | ✅ |
+| PTY read/write/resize/close commands | ✅ |
+| CPU per-core usage | ✅ |
+| RAM used / total / swap | ✅ |
+| Network IN/OUT per interface | ✅ |
+| Disk read/write | ✅ |
+| Stats history streamed via events | ✅ |
 
 ---
 
-## Phase 3 — Stats Engine `v0.3.0`
-
-**Goal:** Full real-time system monitoring — all metrics, all platforms.
+## Phase 3 — Sci-fi HUD `v0.3.0` ✅ DONE
 
 | Task | Status |
 |---|---|
-| CPU per-core usage | 🔲 |
-| RAM used / total / swap | 🔲 |
-| Network IN/OUT per interface | 🔲 |
-| Disk read/write per device | 🔲 |
-| GPU usage + VRAM (where available) | 🔲 |
-| Process list (top N by CPU) | 🔲 |
-| Configurable poll interval (TOML) | 🔲 |
-| Stats history ring buffer (for graphs) | 🔲 |
-| Frontend sparkline graphs per metric | 🔲 |
-
-**Done when:** All stats visible in real time, matching htop/Task Manager accuracy within 2%.
+| Live clock + date in header | ✅ |
+| Session uptime counter | ✅ |
+| CRT scanline overlay | ✅ |
+| Glow effects on borders + title | ✅ |
+| Boot animation typewriter sequence | ✅ |
+| Fullscreen toggle button | ✅ |
+| Corner bracket decorations | ✅ |
+| Footer with stack info | ✅ |
 
 ---
 
-## Phase 4 — Sci-fi UI + Themes `v0.4.0`
-
-**Goal:** The eDEX-UI aesthetic, done properly and performantly.
+## Phase 4 — Themes + Multi-tab `v0.4.0` ✅ DONE
 
 | Task | Status |
 |---|---|
-| JSON theme schema defined + validator | 🔲 |
-| Default dark sci-fi theme | 🔲 |
-| TRON-inspired theme | 🔲 |
-| Matrix theme | 🔲 |
-| Theme hot-reload (dev mode) | 🔲 |
-| WGSL shader pipeline for HUD effects | 🔲 |
-| Modular HUD panel layout system | 🔲 |
-| On-screen keyboard component | 🔲 |
-| Panel drag-to-resize | 🔲 |
-| Animation throttler (idle detection) | 🔲 |
-
-**Done when:** nextgen-ui looks unmistakably sci-fi, themes are swappable at runtime, animations don't spike CPU.
+| JSON theme system (CSS vars) | ✅ |
+| Default (cyan) theme | ✅ |
+| TRON (white) theme | ✅ |
+| Matrix (green) theme | ✅ |
+| Blood (red) theme | ✅ |
+| Theme switcher dropdown | ✅ |
+| Multi-tab terminal | ✅ |
+| Tab add / close | ✅ |
 
 ---
 
-## Phase 5 — File Manager + Plugin Host `v0.5.0`
-
-**Goal:** Usable file manager and a working plugin system.
+## Phase 5 — File Manager + Shortcuts `v0.5.0` ✅ DONE
 
 | Task | Status |
 |---|---|
-| File tree component (Svelte) | 🔲 |
-| File preview pane | 🔲 |
-| Sandboxed FS operations (Rust) | 🔲 |
-| WASM plugin host (wasmtime) | 🔲 |
-| Plugin SDK (guest API) | 🔲 |
-| Example plugin (hello-world) | 🔲 |
-| Plugin manifest format (JSON) | 🔲 |
-| Plugin loading from config dir | 🔲 |
-| OS keyring integration (secrets vault) | 🔲 |
-
-**Done when:** File manager works, one example plugin loads and renders a panel.
+| File manager panel (Rust + Svelte) | ✅ |
+| Directory navigation | ✅ |
+| File size display | ✅ |
+| Toggle file manager (Ctrl+B) | ✅ |
+| Ctrl+T — new tab | ✅ |
+| Ctrl+W — close tab | ✅ |
+| Ctrl+F — fullscreen | ✅ |
+| Config store (TOML, Rust) | ✅ |
 
 ---
 
-## Phase 6 — Hardening + Public Release `v1.0.0`
-
-**Goal:** Production quality. Signed, auto-updating, crash-reported, documented.
+## Phase 6 — Hardening + Public Release `v1.0.0` 🔲 IN PROGRESS
 
 | Task | Status |
 |---|---|
-| Code signing — Linux, Windows, macOS | 🔲 |
-| Auto-updater (Tauri updater, signed) | 🔲 |
-| Crash reporter (Sentry, opt-in) | 🔲 |
-| Full CONTRIBUTING.md written | 🔲 |
+| App icon (custom nextgen-ui icon) | 🔲 |
 | README.md finalized with screenshots | 🔲 |
-| All ADRs written and reviewed | 🔲 |
-| Security audit pass | 🔲 |
-| Performance benchmark suite | 🔲 |
-| Release workflow (.deb, .exe, .dmg) | 🔲 |
+| CHANGELOG.md updated | 🔲 |
+| All ADRs reviewed | ✅ |
+| Merge dev → main | 🔲 |
+| Tag v1.0.0 | 🔲 |
 | Repository made public | 🔲 |
-
-**Done when:** v1.0.0 tagged, binaries attached to GitHub Release, repo public.
 
 ---
 
 ## Future (post-v1.0.0)
 
 - SSH session manager
-- Multi-pane terminal layouts
-- Plugin marketplace
-- Mobile companion app (stats viewer)
+- GPU-accelerated WebGPU terminal renderer
+- Process list (top N by CPU)
+- Plugin system (WASM)
+- Mobile companion stats viewer
 - AI command assistant (local, opt-in)
 - Remote stats monitoring
+- Plugin marketplace
