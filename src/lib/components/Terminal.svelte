@@ -8,6 +8,7 @@
   import { currentTheme } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
   import { playKeySound, playSound } from '$lib/audio';
+  import { appConfig } from '$lib/stores/config';
   import '@xterm/xterm/css/xterm.css';
 
   export let sessionId: string = 'main';
@@ -24,6 +25,13 @@
     theme = t;
     if (term) {
       term.options.theme = buildXtermTheme(t);
+    }
+  });
+
+  const unsubConfig = appConfig.subscribe((cfg) => {
+    if (term && term.options.fontSize !== cfg.fontSize) {
+      term.options.fontSize = cfg.fontSize;
+      fitAddon?.fit();
     }
   });
 
@@ -108,6 +116,7 @@
     unlisten?.();
     resizeObserver?.disconnect();
     unsubTheme();
+    unsubConfig();
     term?.dispose();
     await ptyClose(sessionId).catch(() => {});
   });
