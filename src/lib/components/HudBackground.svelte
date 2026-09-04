@@ -16,8 +16,10 @@
   }
 
   onMount(() => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx2d = canvas.getContext('2d');
+    if (!ctx2d) return;
+    // Bind to a non-nullable local so the narrowing survives into draw()
+    const ctx: CanvasRenderingContext2D = ctx2d;
 
     let W = canvas.width  = window.innerWidth;
     let H = canvas.height = window.innerHeight;
