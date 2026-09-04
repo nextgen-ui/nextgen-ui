@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- `AGENTS.md` — canonical handoff for AI assistants and new contributors, with
+  `CLAUDE.md` and `GEMINI.md` as pointers so every tool works from one brief.
+- `tools/measure_idle.py` and `tools/grab_window.py` — idle-cost measurement and
+  non-intrusive window capture, so performance claims stay reproducible.
+
 ### In Progress
 - Phase 6: hardening, signing, public release
 - StatsPanel render cost — the largest remaining idle-CPU item

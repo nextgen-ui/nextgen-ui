@@ -134,6 +134,9 @@ See [ROADMAP.md](docs/ROADMAP.md) for full detail.
 
 ## Documentation
 
+- **[AGENTS.md](AGENTS.md) — start here if you are an AI assistant or a new
+  contributor.** Current status, environment gotchas, how to verify a change,
+  the performance budget and the traps already discovered.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Contributing](docs/CONTRIBUTING.md)
