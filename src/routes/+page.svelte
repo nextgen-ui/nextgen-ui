@@ -10,6 +10,7 @@
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
   import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
+  import { initNetworkService } from '$lib/stores/network';
 
   let now = new Date();
   let uptime = 0;
@@ -144,6 +145,7 @@
 
   onMount(() => {
     applyThemeCssVars($currentTheme);
+    initNetworkService();
     runBoot();
     clockInterval = setInterval(() => { now = new Date(); }, 1000);
     uptimeInterval = setInterval(() => { uptime++; }, 1000);
