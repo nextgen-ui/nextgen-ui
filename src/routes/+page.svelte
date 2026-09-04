@@ -5,7 +5,9 @@
   import FileManager from '$lib/components/FileManager.svelte';
   import ProcessMonitor from '$lib/components/ProcessMonitor.svelte';
   import HudBackground from '$lib/components/HudBackground.svelte';
+  import OnScreenKeyboard from '$lib/components/OnScreenKeyboard.svelte';
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
+  import { isAppShortcut } from '$lib/shortcuts';
 
   let now = new Date();
   let uptime = 0;
@@ -15,6 +17,7 @@
   let showThemePicker = false;
   let showFileManager = false;
   let showProcesses = false;
+  let showKeyboard = false;
   let clockInterval: ReturnType<typeof setInterval>;
   let uptimeInterval: ReturnType<typeof setInterval>;
 
@@ -37,11 +40,16 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.ctrlKey && e.key === 't') { e.preventDefault(); addTab(); }
-    if (e.ctrlKey && e.key === 'w') { e.preventDefault(); closeTab(activeTab); }
-    if (e.ctrlKey && e.key === 'f') { e.preventDefault(); toggleFullscreen(); }
-    if (e.ctrlKey && e.key === 'b') { e.preventDefault(); showFileManager = !showFileManager; }
-    if (e.ctrlKey && e.key === 'p') { e.preventDefault(); showProcesses = !showProcesses; }
+    if (!isAppShortcut(e)) return;
+    e.preventDefault();
+    switch (e.key.toLowerCase()) {
+      case 't': addTab(); break;
+      case 'w': closeTab(activeTab); break;
+      case 'f': toggleFullscreen(); break;
+      case 'b': showFileManager = !showFileManager; break;
+      case 'p': showProcesses = !showProcesses; break;
+      case 'k': showKeyboard = !showKeyboard; break;
+    }
   }
 
   const bootLines = [
@@ -149,6 +157,9 @@
       <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+P)">
         {showProcesses ? '✕ PROCS' : '⬡ PROCS'}
       </button>
+      <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+K)">
+        {showKeyboard ? '✕ KEYS' : '◰ KEYS'}
+      </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
       <span class="uptime">UP {formatUptime(uptime)}</span>
@@ -177,7 +188,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+T · Ctrl+W · Ctrl+B · Ctrl+F</span>
+        <span class="tab-hint">Ctrl+T · Ctrl+W · Ctrl+B · Ctrl+P · Ctrl+K · Ctrl+F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}
@@ -186,6 +197,9 @@
           </div>
         {/each}
       </div>
+      {#if showKeyboard}
+        <OnScreenKeyboard sessionId={activeTab} />
+      {/if}
     </section>
     {#if showProcesses}
       <aside class="proc-section">
@@ -250,7 +264,7 @@
   .theme-option:hover{background:#ffffff08}.theme-option.active{background:#ffffff0f}
   .hud-body{display:flex;flex:1;gap:8px;overflow:hidden;min-height:0;position:relative;z-index:1}
   .fm-section{width:260px;flex-shrink:0}
-  .terminal-section{flex:1;min-width:0;display:flex;flex-direction:column}
+  .terminal-section{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
   .tab-bar{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel-bg,#0d1220ee);border:1px solid var(--panel-border,#00c8ff33);border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0}
   .tab-wrap{display:flex;align-items:center;border-bottom:2px solid transparent;color:var(--fg-dim,#c8d8f044);transition:all 0.15s}
   .tab-wrap:hover{color:var(--fg,#c8d8f0)}.tab-wrap.active{color:var(--accent,#00c8ff);border-bottom-color:var(--accent,#00c8ff)}

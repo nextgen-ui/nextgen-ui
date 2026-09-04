@@ -5,6 +5,7 @@
   import { WebLinksAddon } from '@xterm/addon-web-links';
   import { ptySpawn, ptyWrite, ptyResize, ptyClose, onPtyOutput } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
+  import { isAppShortcut } from '$lib/shortcuts';
   import '@xterm/xterm/css/xterm.css';
 
   export let sessionId: string = 'main';
@@ -49,6 +50,10 @@
       theme: buildXtermTheme(theme),
       allowProposedApi: true,
     });
+
+    // Returning false stops xterm handling the key, and — crucially — stops it
+    // calling stopPropagation(), so the HUD's window listener still receives it.
+    term.attachCustomKeyEventHandler((e) => !(e.type === 'keydown' && isAppShortcut(e)));
 
     fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
