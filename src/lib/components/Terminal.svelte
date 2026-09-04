@@ -91,12 +91,12 @@
 
 <div class="terminal-wrap" class:hidden={!active}>
   <div class="terminal-header">
-    <span class="dot red" />
-    <span class="dot yellow" />
-    <span class="dot green" />
+    <span class="dot red"></span>
+    <span class="dot yellow"></span>
+    <span class="dot green"></span>
     <span class="session-label">TERMINAL // {sessionId.toUpperCase()}</span>
   </div>
-  <div class="terminal-body" bind:this={container} />
+  <div class="terminal-body" bind:this={container}></div>
 </div>
 
 <style>

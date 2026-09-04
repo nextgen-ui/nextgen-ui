@@ -167,12 +167,14 @@
     <section class="terminal-section">
       <div class="tab-bar">
         {#each tabs as tab}
-          <button class="tab" class:active={activeTab === tab.id} on:click={() => activeTab = tab.id}>
-            {tab.label}
+          <div class="tab-wrap" class:active={activeTab === tab.id}>
+            <button class="tab" class:solo={tabs.length === 1} on:click={() => activeTab = tab.id}>
+              {tab.label}
+            </button>
             {#if tabs.length > 1}
-              <span class="tab-close" on:click|stopPropagation={() => closeTab(tab.id)}>✕</span>
+              <button class="tab-close" aria-label="Close {tab.label}" on:click={() => closeTab(tab.id)}>✕</button>
             {/if}
-          </button>
+          </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
         <span class="tab-hint">Ctrl+T · Ctrl+W · Ctrl+B · Ctrl+F</span>
@@ -250,9 +252,12 @@
   .fm-section{width:260px;flex-shrink:0}
   .terminal-section{flex:1;min-width:0;display:flex;flex-direction:column}
   .tab-bar{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel-bg,#0d1220ee);border:1px solid var(--panel-border,#00c8ff33);border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0}
-  .tab{display:flex;align-items:center;gap:6px;background:none;border:none;border-bottom:2px solid transparent;color:var(--fg-dim,#c8d8f044);font-family:inherit;font-size:10px;letter-spacing:0.1em;padding:6px 12px;cursor:pointer;transition:all 0.15s}
-  .tab:hover{color:var(--fg,#c8d8f0)}.tab.active{color:var(--accent,#00c8ff);border-bottom-color:var(--accent,#00c8ff)}
-  .tab-close{font-size:9px;opacity:0.5;transition:opacity 0.15s}.tab-close:hover{opacity:1;color:var(--red,#ff4c6a)}
+  .tab-wrap{display:flex;align-items:center;border-bottom:2px solid transparent;color:var(--fg-dim,#c8d8f044);transition:all 0.15s}
+  .tab-wrap:hover{color:var(--fg,#c8d8f0)}.tab-wrap.active{color:var(--accent,#00c8ff);border-bottom-color:var(--accent,#00c8ff)}
+  .tab{background:none;border:none;color:inherit;font-family:inherit;font-size:10px;letter-spacing:0.1em;padding:6px 6px 6px 12px;cursor:pointer}
+  .tab.solo{padding-right:12px}
+  .tab-close{background:none;border:none;color:inherit;font-family:inherit;font-size:9px;opacity:0.5;padding:6px 12px 6px 0;cursor:pointer;transition:opacity 0.15s}
+  .tab-close:hover{opacity:1;color:var(--red,#ff4c6a)}
   .tab-add{background:none;border:none;color:var(--fg-dim,#c8d8f033);font-size:16px;cursor:pointer;padding:2px 8px;transition:color 0.15s}
   .tab-add:hover{color:var(--accent,#00c8ff)}
   .tab-hint{font-size:8px;color:var(--fg-dim,#c8d8f022);letter-spacing:0.05em;margin-left:auto;padding-right:6px}

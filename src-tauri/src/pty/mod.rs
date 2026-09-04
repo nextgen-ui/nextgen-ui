@@ -42,6 +42,8 @@ pub fn pty_spawn(
         .map_err(|e| e.to_string())?;
 
     let shell = default_shell();
+    // `cmd` is only mutated in the Windows-only branch below
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut cmd = CommandBuilder::new(&shell);
 
     // PowerShell: disable the banner and use a clean prompt

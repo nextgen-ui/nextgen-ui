@@ -42,8 +42,8 @@ pub fn start_stats_emitter(app: AppHandle, interval_ms: u64) {
             let cpu_usage = if cpu_per_core.is_empty() { 0.0 }
                 else { cpu_per_core.iter().sum::<f32>() / cpu_per_core.len() as f32 };
 
-            let net_in: u64  = networks.iter().map(|(_, n)| n.received()).sum();
-            let net_out: u64 = networks.iter().map(|(_, n)| n.transmitted()).sum();
+            let net_in: u64  = networks.values().map(|n| n.received()).sum();
+            let net_out: u64 = networks.values().map(|n| n.transmitted()).sum();
             let disk_read: u64  = disks.iter().map(|d| d.usage().read_bytes).sum();
             let disk_write: u64 = disks.iter().map(|d| d.usage().written_bytes).sum();
 

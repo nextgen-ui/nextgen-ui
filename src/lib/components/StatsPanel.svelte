@@ -57,7 +57,7 @@
       <span class="value" style="color:{cpuColor(stats.cpu_usage)}">{formatPercent(stats.cpu_usage)}</span>
     </div>
     <div class="bar-track">
-      <div class="bar-fill" style="width:{barWidth(stats.cpu_usage, 100)};background:{cpuColor(stats.cpu_usage)}" />
+      <div class="bar-fill" style="width:{barWidth(stats.cpu_usage, 100)};background:{cpuColor(stats.cpu_usage)}"></div>
     </div>
     <div class="sparkline-wrap">
       <Sparkline data={cpuHist} max={100} color={cpuColor(stats.cpu_usage)} height={28} width={180} />
@@ -70,7 +70,7 @@
       {#each stats.cpu_per_core as core, i}
         <div class="core-item">
           <div class="core-bar-track">
-            <div class="core-bar-fill" style="height:{barWidth(core, 100)};background:{cpuColor(core)}" />
+            <div class="core-bar-fill" style="height:{barWidth(core, 100)};background:{cpuColor(core)}"></div>
           </div>
           <div class="core-val">{core.toFixed(0)}</div>
         </div>
@@ -78,7 +78,7 @@
     </div>
   {/if}
 
-  <div class="divider" />
+  <div class="divider"></div>
 
   <!-- RAM -->
   <div class="stat-section">
@@ -87,7 +87,7 @@
       <span class="value">{formatBytes(stats.mem_used)} / {formatBytes(stats.mem_total)}</span>
     </div>
     <div class="bar-track">
-      <div class="bar-fill" style="width:{barWidth(stats.mem_used, stats.mem_total)};background:{theme.green}" />
+      <div class="bar-fill" style="width:{barWidth(stats.mem_used, stats.mem_total)};background:{theme.green}"></div>
     </div>
     <div class="sparkline-wrap">
       <Sparkline data={memHist} max={100} color={theme.green} height={28} width={180} />
@@ -101,12 +101,12 @@
         <span class="value">{formatBytes(stats.swap_used)} / {formatBytes(stats.swap_total)}</span>
       </div>
       <div class="bar-track">
-        <div class="bar-fill" style="width:{barWidth(stats.swap_used, stats.swap_total)};background:{theme.purple}" />
+        <div class="bar-fill" style="width:{barWidth(stats.swap_used, stats.swap_total)};background:{theme.purple}"></div>
       </div>
     </div>
   {/if}
 
-  <div class="divider" />
+  <div class="divider"></div>
 
   <!-- Network -->
   <div class="stat-section">
@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <div class="divider" />
+  <div class="divider"></div>
 
   <!-- Disk -->
   <div class="stat-section">
