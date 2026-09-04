@@ -2060,6 +2060,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 name = "nextgen-ui"
 version = "1.1.0"
 dependencies = [
+ "libc",
  "portable-pty",
  "serde",
  "serde_json",

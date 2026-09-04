@@ -19,6 +19,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_close,
+            pty::pty_secure_input,
             stats::get_system_stats,
             stats::kill_process,
             stats::set_process_stream,

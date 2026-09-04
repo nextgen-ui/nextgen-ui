@@ -15,6 +15,14 @@ export async function ptyResize(sessionId: string, cols: number, rows: number) {
 export async function ptyClose(sessionId: string) {
   return invoke<void>('pty_close', { sessionId });
 }
+/**
+ * Whether the terminal looks like it is reading a secret — canonical mode with
+ * echo off, as sudo/ssh/getpass leave it. An ordinary shell prompt is not,
+ * even though readline also runs with echo off.
+ */
+export async function ptySecureInput(sessionId: string) {
+  return invoke<boolean>('pty_secure_input', { sessionId });
+}
 export async function onPtyOutput(
   callback: (payload: { session_id: string; data: string }) => void
 ) {
