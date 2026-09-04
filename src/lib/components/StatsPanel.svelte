@@ -1,40 +1,51 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { systemStats, cpuHistory, netInHistory, netOutHistory, memHistory, updateStats, formatBytes, formatPercent } from '$lib/stores/stats';
+  import { allStats, updateStats, formatBytes, formatPercent, type StatsSnapshot } from '$lib/stores/stats';
   import { onSystemStats } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
   import Sparkline from './Sparkline.svelte';
 
   let unlisten: (() => void) | null = null;
-  let stats = $systemStats;
+  let snapshot: StatsSnapshot = $allStats;
   let theme = $currentTheme;
 
-  const unsubStats = systemStats.subscribe((s) => (stats = s));
+  const unsubAll = allStats.subscribe((s) => {
+    snapshot = s;
+  });
   const unsubTheme = currentTheme.subscribe((t) => (theme = t));
 
-  let cpuHist: number[] = [];
-  let netInHist: number[] = [];
-  let netOutHist: number[] = [];
-  let memHist: number[] = [];
-
-  const unsubCpu    = cpuHistory.subscribe((v) => (cpuHist = v));
-  const unsubNetIn  = netInHistory.subscribe((v) => (netInHist = v));
-  const unsubNetOut = netOutHistory.subscribe((v) => (netOutHist = v));
-  const unsubMem    = memHistory.subscribe((v) => (memHist = v));
+  function handleVis() {
+    if (!document.hidden) {
+      snapshot = $allStats;
+    }
+  }
 
   onMount(async () => {
-    unlisten = await onSystemStats((s) => updateStats(s));
+    unlisten = await onSystemStats((s) => {
+      updateStats(s);
+    });
+    document.addEventListener('visibilitychange', handleVis);
   });
 
   onDestroy(() => {
     unlisten?.();
-    unsubStats(); unsubTheme();
-    unsubCpu(); unsubNetIn(); unsubNetOut(); unsubMem();
+    unsubAll();
+    unsubTheme();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVis);
+    }
   });
 
-  function barWidth(used: number, total: number): string {
-    if (total === 0) return '0%';
-    return `${Math.min((used / total) * 100, 100).toFixed(1)}%`;
+  function barScale(used: number, total: number): string {
+    if (total <= 0) return 'scaleX(0)';
+    const ratio = Math.min(Math.max(used / total, 0), 1);
+    return `scaleX(${ratio})`;
+  }
+
+  function coreScale(val: number): string {
+    // Keep a minimum ~2px visible out of 28px height
+    const ratio = Math.min(Math.max(val / 100, 0.071), 1);
+    return `scaleY(${ratio})`;
   }
 
   function cpuColor(val: number): string {
@@ -43,8 +54,22 @@
     return theme.accent;
   }
 
-  $: maxNetIn  = Math.max(...netInHist,  1);
-  $: maxNetOut = Math.max(...netOutHist, 1);
+  function findMax(arr: number[]): number {
+    let m = 1;
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] > m) m = arr[i];
+    }
+    return m;
+  }
+
+  $: stats = snapshot.stats;
+  $: cpuHist = snapshot.cpuHistory;
+  $: netInHist = snapshot.netInHistory;
+  $: netOutHist = snapshot.netOutHistory;
+  $: memHist = snapshot.memHistory;
+
+  $: maxNetIn = findMax(netInHist);
+  $: maxNetOut = findMax(netOutHist);
 </script>
 
 <div class="stats-panel">
@@ -57,7 +82,7 @@
       <span class="value" style="color:{cpuColor(stats.cpu_usage)}">{formatPercent(stats.cpu_usage)}</span>
     </div>
     <div class="bar-track">
-      <div class="bar-fill" style="width:{barWidth(stats.cpu_usage, 100)};background:{cpuColor(stats.cpu_usage)}"></div>
+      <div class="bar-fill" style="transform:{barScale(stats.cpu_usage, 100)};background:{cpuColor(stats.cpu_usage)}"></div>
     </div>
     <div class="sparkline-wrap">
       <Sparkline data={cpuHist} max={100} color={cpuColor(stats.cpu_usage)} height={28} width={180} />
@@ -67,10 +92,10 @@
   <!-- Per-core -->
   {#if stats.cpu_per_core.length > 0}
     <div class="core-grid">
-      {#each stats.cpu_per_core as core, i}
+      {#each stats.cpu_per_core as core, i (i)}
         <div class="core-item">
           <div class="core-bar-track">
-            <div class="core-bar-fill" style="height:{barWidth(core, 100)};background:{cpuColor(core)}"></div>
+            <div class="core-bar-fill" style="transform:{coreScale(core)};background:{cpuColor(core)}"></div>
           </div>
           <div class="core-val">{core.toFixed(0)}</div>
         </div>
@@ -87,7 +112,7 @@
       <span class="value">{formatBytes(stats.mem_used)} / {formatBytes(stats.mem_total)}</span>
     </div>
     <div class="bar-track">
-      <div class="bar-fill" style="width:{barWidth(stats.mem_used, stats.mem_total)};background:{theme.green}"></div>
+      <div class="bar-fill" style="transform:{barScale(stats.mem_used, stats.mem_total)};background:{theme.green}"></div>
     </div>
     <div class="sparkline-wrap">
       <Sparkline data={memHist} max={100} color={theme.green} height={28} width={180} />
@@ -101,7 +126,7 @@
         <span class="value">{formatBytes(stats.swap_used)} / {formatBytes(stats.swap_total)}</span>
       </div>
       <div class="bar-track">
-        <div class="bar-fill" style="width:{barWidth(stats.swap_used, stats.swap_total)};background:{theme.purple}"></div>
+        <div class="bar-fill" style="transform:{barScale(stats.swap_used, stats.swap_total)};background:{theme.purple}"></div>
       </div>
     </div>
   {/if}
@@ -164,14 +189,28 @@
   .value { font-size: 10px; color: var(--fg, #c8d8f0); }
 
   .bar-track { height: 3px; background: #ffffff0f; border-radius: 2px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .bar-fill {
+    width: 100%;
+    height: 100%;
+    border-radius: 2px;
+    transform-origin: left;
+    transition: transform 0.5s ease;
+    will-change: transform;
+  }
 
   .sparkline-wrap { margin-top: 2px; opacity: 0.9; }
 
   .core-grid { display: flex; gap: 3px; align-items: flex-end; height: 36px; }
   .core-item { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
   .core-bar-track { width: 100%; height: 28px; background: #ffffff08; border-radius: 2px; display: flex; align-items: flex-end; overflow: hidden; }
-  .core-bar-fill { width: 100%; border-radius: 2px; transition: height 0.5s ease; min-height: 2px; }
+  .core-bar-fill {
+    width: 100%;
+    height: 100%;
+    border-radius: 2px;
+    transform-origin: bottom;
+    transition: transform 0.5s ease;
+    will-change: transform;
+  }
   .core-val { font-size: 7px; color: var(--fg-dim, #c8d8f033); }
 
   .divider { height: 1px; background: var(--panel-border, #00c8ff11); flex-shrink: 0; }

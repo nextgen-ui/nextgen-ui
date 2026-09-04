@@ -1,9 +1,17 @@
 import { writable, derived } from 'svelte/store';
 import type { SystemStats } from '$lib/ipc';
 
-const HISTORY_LEN = 60; // 60 seconds of history
+export const HISTORY_LEN = 60; // 60 seconds of history
 
-export const systemStats = writable<SystemStats>({
+export interface StatsSnapshot {
+  stats: SystemStats;
+  cpuHistory: number[];
+  netInHistory: number[];
+  netOutHistory: number[];
+  memHistory: number[];
+}
+
+const initialStats: SystemStats = {
   cpu_usage: 0,
   cpu_per_core: [],
   mem_used: 0,
@@ -14,27 +22,53 @@ export const systemStats = writable<SystemStats>({
   net_out: 0,
   disk_read: 0,
   disk_write: 0,
-});
+};
 
-// History rings
-export const cpuHistory   = writable<number[]>([]);
-export const netInHistory  = writable<number[]>([]);
-export const netOutHistory = writable<number[]>([]);
-export const memHistory   = writable<number[]>([]);
+// Internal mutable buffers to avoid GC pressure
+const cpuRing: number[] = [];
+const netInRing: number[] = [];
+const netOutRing: number[] = [];
+const memRing: number[] = [];
 
-function pushHistory(store: ReturnType<typeof writable<number[]>>, val: number) {
-  store.update((arr) => {
-    const next = [...arr, val];
-    return next.length > HISTORY_LEN ? next.slice(next.length - HISTORY_LEN) : next;
-  });
+function pushToRing(ring: number[], val: number): number[] {
+  if (ring.length < HISTORY_LEN) {
+    ring.push(val);
+  } else {
+    ring.copyWithin(0, 1);
+    ring[HISTORY_LEN - 1] = val;
+  }
+  return [...ring];
 }
 
+// Single consolidated store for atomic updates
+export const allStats = writable<StatsSnapshot>({
+  stats: initialStats,
+  cpuHistory: [],
+  netInHistory: [],
+  netOutHistory: [],
+  memHistory: [],
+});
+
+// Derived stores for backward compatibility
+export const systemStats = derived(allStats, ($s) => $s.stats);
+export const cpuHistory = derived(allStats, ($s) => $s.cpuHistory);
+export const netInHistory = derived(allStats, ($s) => $s.netInHistory);
+export const netOutHistory = derived(allStats, ($s) => $s.netOutHistory);
+export const memHistory = derived(allStats, ($s) => $s.memHistory);
+
 export function updateStats(s: SystemStats) {
-  systemStats.set(s);
-  pushHistory(cpuHistory,   s.cpu_usage);
-  pushHistory(netInHistory,  s.net_in / 1024);   // KB/s
-  pushHistory(netOutHistory, s.net_out / 1024);
-  pushHistory(memHistory,   (s.mem_used / s.mem_total) * 100);
+  const cpuHist = pushToRing(cpuRing, s.cpu_usage);
+  const netInHist = pushToRing(netInRing, s.net_in / 1024);   // KB/s
+  const netOutHist = pushToRing(netOutRing, s.net_out / 1024);
+  const memHist = pushToRing(memRing, s.mem_total > 0 ? (s.mem_used / s.mem_total) * 100 : 0);
+
+  allStats.set({
+    stats: s,
+    cpuHistory: cpuHist,
+    netInHistory: netInHist,
+    netOutHistory: netOutHist,
+    memHistory: memHist,
+  });
 }
 
 export function formatBytes(bytes: number): string {
