@@ -7,6 +7,7 @@
   import { ptySpawn, ptyWrite, ptyResize, ptyClose, onPtyOutput } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
+  import { playKeySound, playSound } from '$lib/audio';
   import '@xterm/xterm/css/xterm.css';
 
   export let sessionId: string = 'main';
@@ -82,10 +83,17 @@
       return;
     }
 
+    term.onKey(({ domEvent }) => {
+      playKeySound(domEvent.key);
+    });
+
     term.onData(async (data) => { await ptyWrite(sessionId, data); });
 
     unlisten = await onPtyOutput(({ session_id, data }) => {
-      if (session_id === sessionId) term.write(data);
+      if (session_id === sessionId) {
+        term.write(data);
+        playSound('stdout', { volumeScale: 0.3 });
+      }
     });
 
     resizeObserver = new ResizeObserver(() => {

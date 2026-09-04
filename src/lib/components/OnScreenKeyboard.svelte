@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { ptyWrite, ptyInputState, onPtyOutput } from '$lib/ipc';
   import { SecureInputTracker } from '$lib/secureInput';
+  import { playKeySound } from '$lib/audio';
 
   export let sessionId: string;
 
@@ -173,6 +174,7 @@
   }
 
   async function press(key: Key) {
+    playKeySound(key.code === 'Enter' ? 'Enter' : (key.lo || key.code));
     if (key.mod) { toggleMod(key.mod); return; }
     if (key.code === 'Enter') endSecretRead();
 
