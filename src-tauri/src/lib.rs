@@ -3,13 +3,17 @@ mod fs;
 mod pty;
 mod stats;
 
+use tauri::Manager;
+
 use pty::PtyState;
+use stats::StatsState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(PtyState::new())
+        .manage(StatsState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_spawn,
             pty::pty_write,
@@ -17,6 +21,7 @@ pub fn run() {
             pty::pty_close,
             stats::get_system_stats,
             stats::kill_process,
+            stats::set_process_stream,
             config::get_config,
             config::save_config,
             fs::fs_list_dir,
@@ -24,7 +29,8 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            stats::start_stats_emitter(handle, 1000);
+            let wanted = app.state::<StatsState>().processes_wanted.clone();
+            stats::start_stats_emitter(handle, 1000, wanted);
             Ok(())
         })
         .run(tauri::generate_context!())

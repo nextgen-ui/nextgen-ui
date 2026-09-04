@@ -254,8 +254,11 @@
   .date{font-size:9px;color:var(--fg-dim,#c8d8f055)}.uptime{font-size:9px;color:var(--fg-dim,#c8d8f033)}
   .icon-btn{background:none;border:1px solid var(--accent-dim,#00c8ff22);color:var(--accent,#00c8ff);opacity:0.7;font-size:11px;font-family:inherit;letter-spacing:0.08em;cursor:pointer;padding:3px 8px;border-radius:3px;transition:all 0.2s}
   .icon-btn:hover{opacity:1;box-shadow:0 0 10px var(--accent-glow,#00c8ff33)}
-  .dot-live{width:6px;height:6px;border-radius:50%;background:var(--green,#00ffb3);box-shadow:0 0 10px var(--green,#00ffb3);animation:pulse 2s infinite}
-  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 10px var(--green,#00ffb3)}50%{opacity:0.3;box-shadow:0 0 3px var(--green,#00ffb3)}}
+  /* Animating box-shadow forces a full repaint every frame; measured at ~6% of a
+     CPU core for this one 6px dot. Opacity animates on the compositor and fades
+     the glow along with the dot, so it looks the same for almost nothing. */
+  .dot-live{width:6px;height:6px;border-radius:50%;background:var(--green,#00ffb3);box-shadow:0 0 10px var(--green,#00ffb3);animation:pulse 2s infinite;will-change:opacity}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
   .theme-wrap{position:relative}
   .theme-btn{background:none;border:1px solid var(--panel-border,#00c8ff22);color:var(--accent,#00c8ff);font-size:9px;font-family:inherit;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;cursor:pointer;transition:all 0.2s}
   .theme-btn:hover{box-shadow:0 0 8px var(--accent-glow,#00c8ff22)}

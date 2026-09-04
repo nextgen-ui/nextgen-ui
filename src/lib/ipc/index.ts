@@ -57,3 +57,10 @@ export async function onProcessList(callback: (procs: ProcessInfo[]) => void) {
 export async function killProcess(pid: number) {
   return invoke<void>('kill_process', { pid });
 }
+/**
+ * Tell the backend whether anything is displaying the process list. Walking
+ * every process dominates the sampler's cost, so it is skipped while off.
+ */
+export async function setProcessStream(enabled: boolean) {
+  return invoke<void>('set_process_stream', { enabled });
+}

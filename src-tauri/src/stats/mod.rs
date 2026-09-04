@@ -1,6 +1,27 @@
 use serde::Serialize;
-use sysinfo::{Networks, Disks, System, ProcessesToUpdate};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use sysinfo::{
+    CpuRefreshKind, Disks, MemoryRefreshKind, Networks, ProcessRefreshKind, ProcessesToUpdate,
+    RefreshKind, System,
+};
 use tauri::{AppHandle, Emitter};
+
+/// How many processes the monitor panel shows.
+const TOP_PROCESSES: usize = 12;
+
+/// Walking every process is by far the most expensive thing the sampler does,
+/// and the panel that consumes it is usually closed. The frontend flips this
+/// flag as ProcessMonitor mounts and unmounts.
+#[derive(Default)]
+pub struct StatsState {
+    pub processes_wanted: Arc<AtomicBool>,
+}
+
+#[tauri::command]
+pub fn set_process_stream(state: tauri::State<'_, StatsState>, enabled: bool) {
+    state.processes_wanted.store(enabled, Ordering::Relaxed);
+}
 
 #[derive(Serialize, Clone)]
 pub struct SystemStats {
@@ -25,16 +46,23 @@ pub struct ProcessInfo {
     status: String,
 }
 
-pub fn start_stats_emitter(app: AppHandle, interval_ms: u64) {
+pub fn start_stats_emitter(app: AppHandle, interval_ms: u64, processes_wanted: Arc<AtomicBool>) {
     std::thread::spawn(move || {
-        let mut sys = System::new_all();
+        // Only CPU and memory are ever read off a process, so skip the cmdline,
+        // exe, cwd, environ and user lookups a full refresh would do per process.
+        let proc_kind = ProcessRefreshKind::nothing().with_cpu().with_memory();
+
+        let mut sys = System::new_with_specifics(
+            RefreshKind::nothing()
+                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+                .with_memory(MemoryRefreshKind::everything()),
+        );
         let mut networks = Networks::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
 
         loop {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
-            sys.refresh_processes(ProcessesToUpdate::All, true);
             networks.refresh(true);
             disks.refresh(true);
 
@@ -56,19 +84,32 @@ pub fn start_stats_emitter(app: AppHandle, interval_ms: u64) {
                 net_in, net_out, disk_read, disk_write,
             });
 
-            // Emit top processes sorted by CPU
-            let mut procs: Vec<ProcessInfo> = sys.processes().values().map(|p| {
-                ProcessInfo {
-                    pid: p.pid().as_u32(),
-                    name: p.name().to_string_lossy().to_string(),
-                    cpu: p.cpu_usage(),
-                    mem: p.memory(),
-                    status: format!("{:?}", p.status()),
-                }
-            }).collect();
-            procs.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(std::cmp::Ordering::Equal));
-            procs.truncate(12);
-            let _ = app.emit("process_list", procs);
+            if processes_wanted.load(Ordering::Relaxed) {
+                sys.refresh_processes_specifics(ProcessesToUpdate::All, true, proc_kind);
+
+                // Rank by borrowing, then allocate strings only for the rows that
+                // survive — the old code built two Strings for every process on
+                // the system each second and discarded all but twelve.
+                let mut ranked: Vec<&sysinfo::Process> = sys.processes().values().collect();
+                ranked.sort_unstable_by(|a, b| {
+                    b.cpu_usage()
+                        .partial_cmp(&a.cpu_usage())
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                ranked.truncate(TOP_PROCESSES);
+
+                let procs: Vec<ProcessInfo> = ranked
+                    .into_iter()
+                    .map(|p| ProcessInfo {
+                        pid: p.pid().as_u32(),
+                        name: p.name().to_string_lossy().to_string(),
+                        cpu: p.cpu_usage(),
+                        mem: p.memory(),
+                        status: format!("{:?}", p.status()),
+                    })
+                    .collect();
+                let _ = app.emit("process_list", procs);
+            }
 
             std::thread::sleep(std::time::Duration::from_millis(interval_ms));
         }
@@ -77,7 +118,11 @@ pub fn start_stats_emitter(app: AppHandle, interval_ms: u64) {
 
 #[tauri::command]
 pub fn get_system_stats() -> SystemStats {
-    let mut sys = System::new_all();
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing()
+            .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+            .with_memory(MemoryRefreshKind::everything()),
+    );
     sys.refresh_cpu_usage();
     sys.refresh_memory();
     let cpu_per_core: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
@@ -96,9 +141,15 @@ pub fn get_system_stats() -> SystemStats {
 
 #[tauri::command]
 pub fn kill_process(pid: u32) -> Result<(), String> {
-    let mut sys = System::new_all();
-    sys.refresh_processes(ProcessesToUpdate::All, true);
-    if let Some(process) = sys.process(sysinfo::Pid::from_u32(pid)) {
+    // Refresh just this pid rather than snapshotting the whole system.
+    let target = sysinfo::Pid::from_u32(pid);
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[target]),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
+    if let Some(process) = sys.process(target) {
         process.kill();
         Ok(())
     } else {

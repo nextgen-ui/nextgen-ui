@@ -3,6 +3,7 @@
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { WebLinksAddon } from '@xterm/addon-web-links';
+  import { WebglAddon } from '@xterm/addon-webgl';
   import { ptySpawn, ptyWrite, ptyResize, ptyClose, onPtyOutput } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
@@ -59,6 +60,18 @@
     term.loadAddon(fitAddon);
     term.loadAddon(new WebLinksAddon());
     term.open(container);
+
+    // Render glyphs on the GPU rather than building DOM rows. Must come after
+    // open(), and falls back to the default renderer if WebGL is unavailable
+    // or the context is later lost.
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      /* keep the DOM renderer */
+    }
+
     fitAddon.fit();
 
     const { cols, rows } = term;

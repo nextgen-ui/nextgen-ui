@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { onProcessList, killProcess } from '$lib/ipc';
+  import { onProcessList, killProcess, setProcessStream } from '$lib/ipc';
   import type { ProcessInfo } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
 
@@ -17,9 +17,14 @@
 
   onMount(async () => {
     unlisten = await onProcessList((procs) => { processes = procs; });
+    await setProcessStream(true).catch(() => {});
   });
 
-  onDestroy(() => { unlisten?.(); unsubTheme(); });
+  onDestroy(() => {
+    unlisten?.();
+    unsubTheme();
+    setProcessStream(false).catch(() => {});
+  });
 
   function formatMem(bytes: number): string {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
