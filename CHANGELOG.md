@@ -13,6 +13,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `tools/measure_idle.py` and `tools/grab_window.py` — idle-cost measurement and
   non-intrusive window capture, so performance claims stay reproducible.
 
+### Fixed
+- CI had been red since August, for two reasons that predated this work. The
+  Rust job never installed the Linux system dependencies, so `cargo clippy` and
+  `cargo test` could not build Tauri at all; and `cache: pnpm` in
+  `actions/setup-node` failed on every job that used it, on all three runners.
+- CI pinned Node 20, which cannot run `pnpm test` — `--experimental-strip-types`
+  needs 22.6 or newer. Now on Node 24, matching local.
+- The release workflow's macOS job requested a universal build without
+  installing both Rust targets, and still carried the outdated Linux
+  dependency list.
+
 ### In Progress
 - Phase 6: hardening, signing, public release
 - StatsPanel render cost — the largest remaining idle-CPU item

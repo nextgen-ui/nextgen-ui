@@ -6,12 +6,30 @@ on:
   pull_request:
     branches: [dev]
 
+env:
+  # Tauri needs these to compile at all — including for `cargo clippy` and
+  # `cargo test`, not just for bundling. libdbus-1-dev is required by
+  # libdbus-sys and is absent from Tauri's own prerequisites page.
+  LINUX_DEPS: >-
+    libwebkit2gtk-4.1-dev
+    libjavascriptcoregtk-4.1-dev
+    libsoup-3.0-dev
+    libgtk-3-dev
+    librsvg2-dev
+    libssl-dev
+    libayatana-appindicator3-dev
+    libdbus-1-dev
+
 jobs:
   rust-check:
     name: Rust — fmt + clippy + test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.LINUX_DEPS }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -22,6 +40,8 @@ jobs:
           workspaces: src-tauri
       - name: Check formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+        # Not enforced: rustfmt wants a large reflow of the deliberately
+        # compact style in src-tauri. Settle that before turning this on.
         continue-on-error: true
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -29,21 +49,28 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
   frontend-check:
-    name: Frontend — type check + lint
+    name: Frontend — type check + tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        uses: pnpm/action-setup@v4   # version comes from packageManager
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
+          # >= 22.6 for --experimental-strip-types, which `pnpm test` uses.
+          node-version: 24
+      - name: Locate pnpm store
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Type check
         run: pnpm check
       - name: Unit tests
@@ -63,8 +90,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev libdbus-1-dev patchelf
+          sudo apt-get install -y ${{ env.LINUX_DEPS }} patchelf
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Rust dependencies
@@ -73,14 +99,22 @@ jobs:
           workspaces: src-tauri
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
+          node-version: 24
+      - name: Locate pnpm store
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+      # Compile check only. Packaging (deb/rpm/AppImage/msi/dmg) is the
+      # release workflow's job and is slow and network-dependent.
       - name: Build Tauri app
-        run: pnpm tauri build
+        run: pnpm tauri build --no-bundle

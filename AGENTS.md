@@ -217,9 +217,12 @@ is the highest-value optimisation available and was deliberately deferred.
    geolocation plotted on the existing globe), CPU temperature / battery / load
    average / disk capacity (all already exposed by `sysinfo`), GPU monitoring,
    split panes, a settings GUI over the existing TOML config, command palette.
-6. CI has never actually run the now-enforced gates on a real push — check the
-   first run, particularly the Linux dependency list, which was corrected but
-   could not be tested locally.
+6. CI was red from August until 2026-09-04 and is now fixed; confirm the first
+   green run. The causes are worth knowing: the Rust job never installed the
+   Linux system dependencies, so clippy and tests could not build Tauri at all,
+   and `cache: pnpm` in `actions/setup-node` failed on every runner. pnpm's
+   version now comes from `packageManager` in package.json rather than being
+   duplicated in YAML, and the store is cached explicitly.
 
 ---
 

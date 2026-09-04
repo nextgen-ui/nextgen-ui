@@ -358,8 +358,12 @@ mod tests {
         let mut sh = interactive_shell();
         sh.writer.write_all(b"stty -icanon -echo; sleep 30\n").unwrap();
         sh.writer.flush().ok();
-        std::thread::sleep(Duration::from_millis(700));
-        let st = input_state_fd(sh.fd, sh.pid);
+
+        // Wait for the mode to actually take effect, rather than sleeping a
+        // fixed interval — on a slow runner the assertion would otherwise pass
+        // vacuously, before echo was ever turned off.
+        let st = wait_for(&sh, |s| !s.echo && !s.canonical && !s.at_shell_prompt);
+        assert!(!st.echo && !st.canonical, "raw mode never took effect: {st:?}");
         assert!(
             !st.canonical_secret && !st.program_secret,
             "an ordinary raw-mode program must not be secret: {st:?}"
