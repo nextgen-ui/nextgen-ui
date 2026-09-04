@@ -96,21 +96,58 @@
 |---|---|
 | App icon (custom nextgen-ui icon) | 🔲 |
 | README.md finalized with screenshots | 🔲 |
-| CHANGELOG.md updated | 🔲 |
+| CHANGELOG.md updated | ✅ |
 | All ADRs reviewed | ✅ |
 | Merge dev → main | 🔲 |
-| Tag v1.0.0 | 🔲 |
+| Tag v1.0.0 | ✅ |
 | Repository made public | 🔲 |
 
 ---
 
-## Future (post-v1.0.0)
+## Phase 7 — Keyboard, Globe + Performance `v1.1.0` ✅ DONE
+
+| Task | Status |
+|---|---|
+| Process monitor (top N by CPU, with kill) | ✅ |
+| On-screen keyboard | ✅ |
+| Physical key mirroring on the on-screen keyboard | ✅ |
+| Password-prompt detection, display suppressed | ✅ |
+| World-view globe (Natural Earth land mask) | ✅ |
+| GPU terminal renderer (xterm WebGL addon) | ✅ |
+| Shortcuts moved to the Ctrl+Shift tier | ✅ |
+| Idle CPU ~39% → ~10% of a core | ✅ |
+| First test suites, Rust + TypeScript, wired into CI | ✅ |
+
+---
+
+## Performance budget
+
+Idle cost is a feature, and the main reason to prefer this over eDEX-UI.
+Measured on the same machine, both idle:
+
+| | eDEX-UI (Electron) | nextgen-ui (Tauri) |
+|---|---|---|
+| CPU | 36.4% | ~10% |
+| RSS | 1460 MB | 452 MB |
+| Processes | 15 | 3 |
+| Binary | ~100 MB | 15.5 MB |
+
+Largest remaining item: StatsPanel, ~12.6% of a core.
+
+---
+
+## Future (post-v1.1.0)
 
 - SSH session manager
-- GPU-accelerated WebGPU terminal renderer
-- Process list (top N by CPU)
+- Custom app icon
+- Sound design (key clicks, panel tones)
+- Split panes
+- Network detail — public IP, ping, geolocation on the globe
+- CPU temperature, battery, load average, disk capacity
+- GPU monitoring (nvidia/amd)
+- Settings GUI over the existing TOML config
+- Command palette
+- Container/Docker widget
 - Plugin system (WASM)
 - Mobile companion stats viewer
 - AI command assistant (local, opt-in)
-- Remote stats monitoring
-- Plugin marketplace
