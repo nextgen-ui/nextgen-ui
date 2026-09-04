@@ -122,8 +122,16 @@ pub struct TerminalInputState {
     pub at_shell_prompt: bool,
     /// Name of the foreground program, when it can be determined.
     pub foreground: Option<String>,
-    /// Best judgement that a secret is being typed.
-    pub secret: bool,
+    /// Line-oriented secret read: canonical mode with echo off, as getpass and
+    /// `read -s` leave it. Unambiguous and true for exactly as long as the read
+    /// lasts, so it can gate display directly.
+    pub canonical_secret: bool,
+    /// A program that reads secrets owns the terminal in raw mode with echo
+    /// off — sudo with pwfeedback. Ambiguous: it stays true for the whole
+    /// session after `sudo su` authenticates, because sudo remains the process
+    /// group leader. The frontend therefore treats this as a trigger that a
+    /// read has *started*, and releases on Enter, rather than as a live truth.
+    pub program_secret: bool,
 }
 
 /// Programs that read secrets. Needed because termios alone cannot always tell:
@@ -158,15 +166,13 @@ fn foreground_name(fd: std::os::unix::io::RawFd) -> (Option<i32>, Option<String>
 
 /// Inspect the terminal to decide whether typed input should be displayed.
 ///
-/// Treated as secret when echo is off and either:
-///   - canonical mode is on, which is what getpass and `read -s` leave; or
-///   - a secret-reading program owns the terminal, which covers sudo with
-///     pwfeedback, where termios looks exactly like a shell prompt.
+/// Reports two separate signals rather than one verdict, because they have
+/// very different lifetimes — see the field docs on TerminalInputState.
 ///
-/// Deliberately *not* secret when the shell itself is in the foreground: an
+/// Deliberately neither, when the shell itself is in the foreground: an
 /// interactive shell always runs with echo off because readline echoes
 /// characters itself. Programs like vim or less also run with echo off, but
-/// they are not in the list, so the keyboard keeps working inside them.
+/// are not in the list, so the keyboard keeps working inside them.
 #[tauri::command]
 pub fn pty_input_state(
     state: tauri::State<'_, PtyState>,
@@ -180,7 +186,7 @@ pub fn pty_input_state(
         match session.master.as_raw_fd() {
             Some(fd) => Ok(input_state_fd(fd, session.shell_pid)),
             // Cannot inspect: assume secret rather than risk displaying one.
-            None => Ok(TerminalInputState { secret: true, ..Default::default() }),
+            None => Ok(TerminalInputState { canonical_secret: true, program_secret: true, ..Default::default() }),
         }
     }
 
@@ -200,7 +206,7 @@ fn input_state_fd(
     let (echo, canonical) = unsafe {
         let mut t: libc::termios = std::mem::zeroed();
         if libc::tcgetattr(fd, &mut t) != 0 {
-            return TerminalInputState { secret: true, ..Default::default() };
+            return TerminalInputState { canonical_secret: true, program_secret: true, ..Default::default() };
         }
         (t.c_lflag & libc::ECHO != 0, t.c_lflag & libc::ICANON != 0)
     };
@@ -211,17 +217,21 @@ fn input_state_fd(
         _ => false,
     };
 
-    // Canonical mode with echo off is a line-oriented secret read (getpass,
-    // `read -s`) whoever owns the terminal — `read -s` is a shell builtin, so
-    // the shell itself is the foreground process there.
-    // Raw mode with echo off is ambiguous: it is equally an ordinary shell
-    // prompt (readline), a full-screen program, or sudo with pwfeedback. Only
-    // the foreground program separates them.
-    let secret = !echo
-        && (canonical
-            || (!at_shell_prompt && foreground.as_deref().is_some_and(is_secret_program)));
+    // Canonical mode with echo off is a line-oriented secret read whoever owns
+    // the terminal — `read -s` is a shell builtin, so the shell itself is the
+    // foreground process there.
+    let canonical_secret = !echo && canonical;
 
-    TerminalInputState { echo, canonical, at_shell_prompt, foreground, secret }
+    // Raw mode with echo off is ambiguous: equally an ordinary shell prompt
+    // (readline), a full-screen program, or sudo with pwfeedback. Only the
+    // foreground program separates them, and even then only at the moment the
+    // program takes the terminal.
+    let program_secret = !echo
+        && !canonical
+        && !at_shell_prompt
+        && foreground.as_deref().is_some_and(is_secret_program);
+
+    TerminalInputState { echo, canonical, at_shell_prompt, foreground, canonical_secret, program_secret }
 }
 
 #[tauri::command]
@@ -286,12 +296,12 @@ mod tests {
         Sh { _child: child, writer, fd, pid, _master: pair.master }
     }
 
-    fn wait_for(sh: &Sh, want: bool) -> TerminalInputState {
+    fn wait_for(sh: &Sh, pred: impl Fn(&TerminalInputState) -> bool) -> TerminalInputState {
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut last = input_state_fd(sh.fd, sh.pid);
         while Instant::now() < deadline {
             last = input_state_fd(sh.fd, sh.pid);
-            if last.secret == want { return last; }
+            if pred(&last) { return last; }
             std::thread::sleep(Duration::from_millis(25));
         }
         last
@@ -303,7 +313,7 @@ mod tests {
     fn shell_prompt_is_not_secret() {
         let sh = interactive_shell();
         let st = input_state_fd(sh.fd, sh.pid);
-        assert!(!st.secret, "shell prompt must not be secret: {st:?}");
+        assert!(!st.canonical_secret && !st.program_secret, "shell prompt is not a read: {st:?}");
         assert!(st.at_shell_prompt, "shell should own the terminal: {st:?}");
     }
 
@@ -313,8 +323,8 @@ mod tests {
         let mut sh = interactive_shell();
         sh.writer.write_all(b"read -s -p 'Password: ' x\n").unwrap();
         sh.writer.flush().ok();
-        let st = wait_for(&sh, true);
-        assert!(st.secret, "read -s must be secret: {st:?}");
+        let st = wait_for(&sh, |s| s.canonical_secret);
+        assert!(st.canonical_secret, "read -s must be a canonical secret read: {st:?}");
     }
 
     /// Regression: sudo with `pwfeedback` (the default on Linux Mint) reads key
@@ -335,13 +345,10 @@ mod tests {
             .unwrap();
         sh.writer.flush().ok();
 
-        let st = wait_for(&sh, true);
+        let st = wait_for(&sh, |s| s.program_secret);
         std::fs::remove_dir_all(&dir).ok();
-        assert!(
-            st.secret,
-            "raw-mode sudo (pwfeedback) must be secret: {st:?}"
-        );
-        assert!(!st.canonical, "this case is specifically non-canonical: {st:?}");
+        assert!(st.program_secret, "raw-mode sudo (pwfeedback) must trigger: {st:?}");
+        assert!(!st.canonical_secret, "and must not be reported as a canonical read: {st:?}");
     }
 
     /// Full-screen programs also run raw with echo off, but are not reading
@@ -354,7 +361,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(700));
         let st = input_state_fd(sh.fd, sh.pid);
         assert!(
-            !st.secret,
+            !st.canonical_secret && !st.program_secret,
             "an ordinary raw-mode program must not be secret: {st:?}"
         );
     }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { ptyWrite, ptyInputState, onPtyOutput } from '$lib/ipc';
+  import { SecureInputTracker } from '$lib/secureInput';
 
   export let sessionId: string;
 
@@ -66,40 +67,36 @@
 
   // ── Secure input ───────────────────────────────────────────────────────────
   // Lighting up keys as they are typed would display a password to anyone
-  // watching the screen, so nothing highlights while a secret is being read.
-  // The backend decides from the terminal's termios and the foreground
-  // program; a password-looking prompt in the output additionally trips it
-  // immediately, closing the gap before the next poll.
-  //
-  // That output trigger latches until the shell owns the terminal again. It
-  // used to expire on a fixed timeout, which released mid-password whenever
-  // the backend could not classify the reader — exactly what happened with
-  // sudo's pwfeedback.
+  // watching the screen. The decision logic lives in SecureInputTracker, where
+  // it is unit tested — see src/lib/secureInput.ts for why the two backend
+  // signals are treated differently.
   const POLL_MS = 150;
   const PROMPT_RE = /(password|passphrase|pin)\b[^\n]{0,40}:/i;
 
+  const tracker = new SecureInputTracker();
   let secure = false;
-  let promptLatched = false;
   let echoTimer: ReturnType<typeof setInterval>;
   let unlistenOutput: (() => void) | null = null;
 
   /** Physical keys currently held down, by KeyboardEvent.code. */
   let downCodes = new Set<string>();
 
-  function setSecure(next: boolean) {
+  function applySecure(next: boolean) {
     if (next === secure) return;
     secure = next;
     if (secure && downCodes.size) downCodes = new Set();
   }
 
+  /** A secret read ends when the line is submitted. */
+  function endSecretRead() {
+    applySecure(tracker.submitted());
+  }
+
   async function poll() {
     try {
-      const st = await ptyInputState(sessionId);
-      // Back at the prompt means whatever was reading has finished.
-      if (st.at_shell_prompt) promptLatched = false;
-      setSecure(st.secret || promptLatched);
+      applySecure(tracker.sample(await ptyInputState(sessionId)));
     } catch {
-      setSecure(true); // unknown state is treated as secret
+      applySecure(tracker.unknown());
     }
   }
 
@@ -107,6 +104,7 @@
   // Registered in the capture phase: xterm.js calls stopPropagation() on keys it
   // handles, so a bubble-phase listener would never see most keystrokes.
   function onPhysicalDown(e: KeyboardEvent) {
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') endSecretRead();
     if (secure || !e.code) return;
     if (downCodes.has(e.code)) return;
     downCodes.add(e.code);
@@ -128,10 +126,7 @@
 
     unlistenOutput = await onPtyOutput(({ session_id, data }) => {
       if (session_id !== sessionId) return;
-      if (PROMPT_RE.test(data)) {
-        promptLatched = true;
-        setSecure(true);
-      }
+      if (PROMPT_RE.test(data)) applySecure(tracker.promptSeen());
     });
   });
 
@@ -179,6 +174,7 @@
 
   async function press(key: Key) {
     if (key.mod) { toggleMod(key.mod); return; }
+    if (key.code === 'Enter') endSecretRead();
 
     let data: string;
     if (key.seq) {

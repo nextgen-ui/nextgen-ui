@@ -24,8 +24,13 @@ export interface TerminalInputState {
   at_shell_prompt: boolean;
   /** Foreground program name, when it can be determined. */
   foreground: string | null;
-  /** Best judgement that a secret is being typed. */
-  secret: boolean;
+  /** Canonical-mode secret read (getpass, `read -s`). True for exactly as long
+   *  as the read lasts, so it can gate display directly. */
+  canonical_secret: boolean;
+  /** A secret-reading program owns the terminal in raw mode (sudo pwfeedback).
+   *  Stays true for the whole session after `sudo su` authenticates, so it marks
+   *  that a read *started*, not that one is still in progress. */
+  program_secret: boolean;
 }
 
 /** Inspect what the terminal is doing with typed input. */

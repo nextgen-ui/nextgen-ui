@@ -9,7 +9,10 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    // Node's built-in test runner strips types in place, so test files import
+    // their subject with an explicit .ts extension.
+    "allowImportingTsExtensions": true
   }
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
   // except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
