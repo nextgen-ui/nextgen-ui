@@ -5,7 +5,10 @@
   import FileManager from '$lib/components/FileManager.svelte';
   import ProcessMonitor from '$lib/components/ProcessMonitor.svelte';
   import HudBackground from '$lib/components/HudBackground.svelte';
+  import OnScreenKeyboard from '$lib/components/OnScreenKeyboard.svelte';
+  import GlobeWidget from '$lib/components/GlobeWidget.svelte';
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
+  import { isAppShortcut } from '$lib/shortcuts';
 
   let now = new Date();
   let uptime = 0;
@@ -15,6 +18,8 @@
   let showThemePicker = false;
   let showFileManager = false;
   let showProcesses = false;
+  let showKeyboard = false;
+  let showGlobe = true;
   let clockInterval: ReturnType<typeof setInterval>;
   let uptimeInterval: ReturnType<typeof setInterval>;
 
@@ -37,11 +42,17 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.ctrlKey && e.key === 't') { e.preventDefault(); addTab(); }
-    if (e.ctrlKey && e.key === 'w') { e.preventDefault(); closeTab(activeTab); }
-    if (e.ctrlKey && e.key === 'f') { e.preventDefault(); toggleFullscreen(); }
-    if (e.ctrlKey && e.key === 'b') { e.preventDefault(); showFileManager = !showFileManager; }
-    if (e.ctrlKey && e.key === 'p') { e.preventDefault(); showProcesses = !showProcesses; }
+    if (!isAppShortcut(e)) return;
+    e.preventDefault();
+    switch (e.key.toLowerCase()) {
+      case 't': addTab(); break;
+      case 'w': closeTab(activeTab); break;
+      case 'f': toggleFullscreen(); break;
+      case 'b': showFileManager = !showFileManager; break;
+      case 'p': showProcesses = !showProcesses; break;
+      case 'k': showKeyboard = !showKeyboard; break;
+      case 'g': showGlobe = !showGlobe; break;
+    }
   }
 
   const bootLines = [
@@ -146,8 +157,14 @@
       <button class="icon-btn" on:click={() => showFileManager = !showFileManager}>
         {showFileManager ? '✕ FILES' : '◫ FILES'}
       </button>
-      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+P)">
+      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+Shift+P)">
         {showProcesses ? '✕ PROCS' : '⬡ PROCS'}
+      </button>
+      <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+Shift+K)">
+        {showKeyboard ? '✕ KEYS' : '◰ KEYS'}
+      </button>
+      <button class="icon-btn" on:click={() => showGlobe = !showGlobe} title="World view (Ctrl+Shift+G)">
+        {showGlobe ? '✕ GLOBE' : '◍ GLOBE'}
       </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
@@ -177,7 +194,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+T · Ctrl+W · Ctrl+B · Ctrl+F</span>
+        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·G·F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}
@@ -186,6 +203,9 @@
           </div>
         {/each}
       </div>
+      {#if showKeyboard}
+        <OnScreenKeyboard sessionId={activeTab} />
+      {/if}
     </section>
     {#if showProcesses}
       <aside class="proc-section">
@@ -194,6 +214,9 @@
     {/if}
 
     <aside class="stats-section">
+      {#if showGlobe}
+        <GlobeWidget />
+      {/if}
       <StatsPanel />
     </aside>
   </main>
@@ -240,8 +263,11 @@
   .date{font-size:9px;color:var(--fg-dim,#c8d8f055)}.uptime{font-size:9px;color:var(--fg-dim,#c8d8f033)}
   .icon-btn{background:none;border:1px solid var(--accent-dim,#00c8ff22);color:var(--accent,#00c8ff);opacity:0.7;font-size:11px;font-family:inherit;letter-spacing:0.08em;cursor:pointer;padding:3px 8px;border-radius:3px;transition:all 0.2s}
   .icon-btn:hover{opacity:1;box-shadow:0 0 10px var(--accent-glow,#00c8ff33)}
-  .dot-live{width:6px;height:6px;border-radius:50%;background:var(--green,#00ffb3);box-shadow:0 0 10px var(--green,#00ffb3);animation:pulse 2s infinite}
-  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 10px var(--green,#00ffb3)}50%{opacity:0.3;box-shadow:0 0 3px var(--green,#00ffb3)}}
+  /* Animating box-shadow forces a full repaint every frame; measured at ~6% of a
+     CPU core for this one 6px dot. Opacity animates on the compositor and fades
+     the glow along with the dot, so it looks the same for almost nothing. */
+  .dot-live{width:6px;height:6px;border-radius:50%;background:var(--green,#00ffb3);box-shadow:0 0 10px var(--green,#00ffb3);animation:pulse 2s infinite;will-change:opacity}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
   .theme-wrap{position:relative}
   .theme-btn{background:none;border:1px solid var(--panel-border,#00c8ff22);color:var(--accent,#00c8ff);font-size:9px;font-family:inherit;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;cursor:pointer;transition:all 0.2s}
   .theme-btn:hover{box-shadow:0 0 8px var(--accent-glow,#00c8ff22)}
@@ -250,7 +276,7 @@
   .theme-option:hover{background:#ffffff08}.theme-option.active{background:#ffffff0f}
   .hud-body{display:flex;flex:1;gap:8px;overflow:hidden;min-height:0;position:relative;z-index:1}
   .fm-section{width:260px;flex-shrink:0}
-  .terminal-section{flex:1;min-width:0;display:flex;flex-direction:column}
+  .terminal-section{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
   .tab-bar{display:flex;align-items:center;gap:2px;padding:0 4px;background:var(--panel-bg,#0d1220ee);border:1px solid var(--panel-border,#00c8ff33);border-bottom:none;border-radius:6px 6px 0 0;flex-shrink:0}
   .tab-wrap{display:flex;align-items:center;border-bottom:2px solid transparent;color:var(--fg-dim,#c8d8f044);transition:all 0.15s}
   .tab-wrap:hover{color:var(--fg,#c8d8f0)}.tab-wrap.active{color:var(--accent,#00c8ff);border-bottom-color:var(--accent,#00c8ff)}
@@ -262,7 +288,7 @@
   .tab-add:hover{color:var(--accent,#00c8ff)}
   .tab-hint{font-size:8px;color:var(--fg-dim,#c8d8f022);letter-spacing:0.05em;margin-left:auto;padding-right:6px}
   .terminal-container{flex:1;min-height:0}.terminal-slot{height:100%}.terminal-slot.hidden{display:none}
-  .stats-section{width:230px;flex-shrink:0}
+  .stats-section{width:230px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;min-height:0}
   .hud-footer{display:flex;align-items:center;gap:8px;padding:5px 16px;border:1px solid var(--panel-border,#00c8ff22);border-radius:6px;background:var(--panel-bg,#0d1220ee);flex-shrink:0;font-size:9px;letter-spacing:0.12em;position:relative;z-index:1}
   .spacer{flex:1}.footer-item{color:var(--fg-dim,#c8d8f044)}.footer-dim{color:var(--fg-dim,#c8d8f018)}
 </style>

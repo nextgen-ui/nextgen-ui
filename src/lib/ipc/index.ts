@@ -15,6 +15,28 @@ export async function ptyResize(sessionId: string, cols: number, rows: number) {
 export async function ptyClose(sessionId: string) {
   return invoke<void>('pty_close', { sessionId });
 }
+export interface TerminalInputState {
+  /** Terminal is echoing typed characters itself. */
+  echo: boolean;
+  /** Canonical (line) mode — off for anything reading key by key. */
+  canonical: boolean;
+  /** The shell owns the terminal, i.e. the user is at a prompt. */
+  at_shell_prompt: boolean;
+  /** Foreground program name, when it can be determined. */
+  foreground: string | null;
+  /** Canonical-mode secret read (getpass, `read -s`). True for exactly as long
+   *  as the read lasts, so it can gate display directly. */
+  canonical_secret: boolean;
+  /** A secret-reading program owns the terminal in raw mode (sudo pwfeedback).
+   *  Stays true for the whole session after `sudo su` authenticates, so it marks
+   *  that a read *started*, not that one is still in progress. */
+  program_secret: boolean;
+}
+
+/** Inspect what the terminal is doing with typed input. */
+export async function ptyInputState(sessionId: string) {
+  return invoke<TerminalInputState>('pty_input_state', { sessionId });
+}
 export async function onPtyOutput(
   callback: (payload: { session_id: string; data: string }) => void
 ) {
@@ -56,4 +78,11 @@ export async function onProcessList(callback: (procs: ProcessInfo[]) => void) {
 }
 export async function killProcess(pid: number) {
   return invoke<void>('kill_process', { pid });
+}
+/**
+ * Tell the backend whether anything is displaying the process list. Walking
+ * every process dominates the sampler's cost, so it is skipped while off.
+ */
+export async function setProcessStream(enabled: boolean) {
+  return invoke<void>('set_process_stream', { enabled });
 }

@@ -24,7 +24,7 @@ nextgen-ui is a spiritual successor to [eDEX-UI](https://github.com/GitSquared/e
 | Raw CSS theming (fragile) | JSON + CSS var theme engine |
 | Single terminal session | Multi-tab terminal |
 | No file manager | Built-in sci-fi file manager |
-| No keyboard shortcuts | Ctrl+T/W/B/F shortcuts |
+| No keyboard shortcuts | Ctrl+Shift+T/W/B/P/K/F shortcuts |
 
 ---
 
@@ -32,7 +32,7 @@ nextgen-ui is a spiritual successor to [eDEX-UI](https://github.com/GitSquared/e
 
 ### Terminal
 - Full PTY terminal (PowerShell on Windows, bash/zsh on Linux/macOS)
-- Multi-tab sessions — unlimited shells, Ctrl+T to open, Ctrl+W to close
+- Multi-tab sessions — unlimited shells, Ctrl+Shift+T to open, Ctrl+Shift+W to close
 - xterm.js renderer with sci-fi color themes
 - Resize-aware — PTY cols/rows sync on window resize
 
@@ -47,7 +47,7 @@ nextgen-ui is a spiritual successor to [eDEX-UI](https://github.com/GitSquared/e
 - Browse filesystem in a sci-fi tree panel
 - Click directories to navigate, `↑` to go up
 - File sizes displayed per entry
-- Toggle with `◫ FILES` button or Ctrl+B
+- Toggle with `◫ FILES` button or Ctrl+Shift+B
 
 ### Sci-fi HUD
 - Live clock, date, session uptime in header
@@ -56,7 +56,7 @@ nextgen-ui is a spiritual successor to [eDEX-UI](https://github.com/GitSquared/e
 - Glow effects on borders and title
 - Corner bracket decorations
 - Animated LIVE indicator
-- Fullscreen toggle (Ctrl+F)
+- Fullscreen toggle (Ctrl+Shift+F)
 
 ### Themes
 - **DEFAULT** — cyan on dark blue
@@ -68,10 +68,15 @@ nextgen-ui is a spiritual successor to [eDEX-UI](https://github.com/GitSquared/e
 ### Keyboard Shortcuts
 | Shortcut | Action |
 |---|---|
-| Ctrl+T | New terminal tab |
-| Ctrl+W | Close current tab |
-| Ctrl+B | Toggle file manager |
-| Ctrl+F | Toggle fullscreen |
+| Ctrl+Shift+T | New terminal tab |
+| Ctrl+Shift+W | Close current tab |
+| Ctrl+Shift+B | Toggle file manager |
+| Ctrl+Shift+P | Toggle process monitor |
+| Ctrl+Shift+K | Toggle on-screen keyboard |
+| Ctrl+Shift+F | Toggle fullscreen |
+
+Shortcuts use the Ctrl+Shift tier so plain Ctrl stays with the shell — Ctrl+W
+still deletes a word, Ctrl+P still walks history, Ctrl+K still kills the line.
 
 ---
 

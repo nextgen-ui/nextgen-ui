@@ -9,6 +9,63 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### In Progress
 - Phase 6: hardening, signing, public release
+- StatsPanel render cost — the largest remaining idle-CPU item
+
+---
+
+## [1.1.0] — 2026-09-04
+
+### Added
+- On-screen keyboard — full US-ANSI layout writing to the active PTY, with
+  one-shot Shift/Ctrl/Alt, latching Caps, C0 control codes and Alt-prefixed
+  escapes. Toggle with `◰ KEYS` or Ctrl+Shift+K.
+- Keyboard mirrors the physical keyboard, keyed on `KeyboardEvent.code` so it
+  follows physical position rather than host layout. Pressed keys fill.
+- Keyboard suppresses all highlighting while a password is being typed, so the
+  panel cannot display a secret to anyone watching the screen. Detects both
+  canonical-mode reads (getpass, `read -s`) and raw-mode readers such as sudo
+  with `pwfeedback`.
+- World-view globe widget — rotating point cloud of real coastlines, from a
+  ~2.3KB land mask rasterised offline from Natural Earth 110m (public domain).
+  Toggle with `◍ GLOBE` or Ctrl+Shift+G. Costs 0.4% of a CPU core.
+- Process monitor with kill and CPU/MEM sort (Ctrl+Shift+P).
+- WebGL terminal renderer via `@xterm/addon-webgl`, with fallback to the DOM
+  renderer when WebGL is unavailable or the context is lost.
+- First tests: 4 Rust (pty termios detection) and 8 TypeScript (secure-input
+  state machine), both run in CI. `pnpm test` uses node's built-in runner.
+
+### Changed
+- HUD shortcuts moved from Ctrl to the Ctrl+Shift tier, so plain Ctrl stays
+  with the shell (Ctrl+W deletes a word, Ctrl+P walks history, Ctrl+K kills
+  the line) — the convention terminal emulators use.
+- Crate and package renamed from `nextgen-ui-scaffold` to `nextgen-ui`, and
+  version aligned to 1.1.0 across package.json, Cargo.toml and tauri.conf.json.
+- Dropped `three`, which was declared but never imported.
+
+### Performance
+- Idle CPU cut from ~39% to ~10% of a core (release build, 30s windows).
+- Process walk is gated on the process panel being open, asks only for CPU and
+  memory rather than a full per-process refresh, and allocates strings only for
+  the rows actually shown instead of for every process on the system.
+- `get_system_stats` and `kill_process` no longer build whole-system snapshots.
+- HudBackground caches its gradients instead of rebuilding five per frame,
+  replaces per-line rgba strings with `globalAlpha`, batches 58 grid strokes
+  into 6, and runs at 30fps — 5fps unfocused, stopped when hidden.
+- `.dot-live` animated `box-shadow`, forcing a full repaint every frame; that
+  one 6px dot cost ~6% of a CPU core. Now animates opacity.
+
+### Fixed
+- HUD shortcuts never fired while the terminal had focus — xterm.js calls
+  `stopPropagation()` on keys it handles, so the window listener never saw
+  them. Terminal now declines HUD keys via `attachCustomKeyEventHandler`.
+- Tab close control was a `<span>` click handler nested inside the tab
+  `<button>` — keyboard-unreachable and invalid HTML; now sibling buttons.
+- `package.json` declared MIT while LICENSE, the README badge and the app
+  footer all state AGPL-3.0. Now AGPL-3.0-only.
+- Cleared all 25 svelte-check errors, 13 warnings and 2 clippy lints; CI
+  enforces clippy, type-check and tests again.
+- CI's Linux dependency list could not have built the app: `libdbus-1-dev` was
+  missing and `libappindicator3-dev` is only transitional.
 
 ---
 
