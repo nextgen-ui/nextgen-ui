@@ -6,6 +6,7 @@
   import ProcessMonitor from '$lib/components/ProcessMonitor.svelte';
   import HudBackground from '$lib/components/HudBackground.svelte';
   import OnScreenKeyboard from '$lib/components/OnScreenKeyboard.svelte';
+  import GlobeWidget from '$lib/components/GlobeWidget.svelte';
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
 
@@ -18,6 +19,7 @@
   let showFileManager = false;
   let showProcesses = false;
   let showKeyboard = false;
+  let showGlobe = true;
   let clockInterval: ReturnType<typeof setInterval>;
   let uptimeInterval: ReturnType<typeof setInterval>;
 
@@ -49,6 +51,7 @@
       case 'b': showFileManager = !showFileManager; break;
       case 'p': showProcesses = !showProcesses; break;
       case 'k': showKeyboard = !showKeyboard; break;
+      case 'g': showGlobe = !showGlobe; break;
     }
   }
 
@@ -160,6 +163,9 @@
       <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+Shift+K)">
         {showKeyboard ? '✕ KEYS' : '◰ KEYS'}
       </button>
+      <button class="icon-btn" on:click={() => showGlobe = !showGlobe} title="World view (Ctrl+Shift+G)">
+        {showGlobe ? '✕ GLOBE' : '◍ GLOBE'}
+      </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
       <span class="uptime">UP {formatUptime(uptime)}</span>
@@ -188,7 +194,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·F</span>
+        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·G·F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}
@@ -208,6 +214,9 @@
     {/if}
 
     <aside class="stats-section">
+      {#if showGlobe}
+        <GlobeWidget />
+      {/if}
       <StatsPanel />
     </aside>
   </main>
@@ -279,7 +288,7 @@
   .tab-add:hover{color:var(--accent,#00c8ff)}
   .tab-hint{font-size:8px;color:var(--fg-dim,#c8d8f022);letter-spacing:0.05em;margin-left:auto;padding-right:6px}
   .terminal-container{flex:1;min-height:0}.terminal-slot{height:100%}.terminal-slot.hidden{display:none}
-  .stats-section{width:230px;flex-shrink:0}
+  .stats-section{width:230px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;min-height:0}
   .hud-footer{display:flex;align-items:center;gap:8px;padding:5px 16px;border:1px solid var(--panel-border,#00c8ff22);border-radius:6px;background:var(--panel-bg,#0d1220ee);flex-shrink:0;font-size:9px;letter-spacing:0.12em;position:relative;z-index:1}
   .spacer{flex:1}.footer-item{color:var(--fg-dim,#c8d8f044)}.footer-dim{color:var(--fg-dim,#c8d8f018)}
 </style>
