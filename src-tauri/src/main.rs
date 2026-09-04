@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    nextgen_ui_scaffold_lib::run()
+    nextgen_ui_lib::run()
 }
