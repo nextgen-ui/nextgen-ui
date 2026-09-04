@@ -7,6 +7,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- On-screen keyboard — full US-ANSI layout writing to the active PTY, with
+  one-shot Shift/Ctrl/Alt, latching Caps, C0 control codes and Alt-prefixed
+  escapes. Toggle with `◰ KEYS` or Ctrl+Shift+K.
+
+### Changed
+- HUD shortcuts moved from Ctrl to the Ctrl+Shift tier, so plain Ctrl stays
+  with the shell (Ctrl+W deletes a word, Ctrl+P walks history, Ctrl+K kills
+  the line) — the convention terminal emulators use.
+- Crate and package renamed from `nextgen-ui-scaffold` to `nextgen-ui`, and
+  version aligned to 1.1.0 across package.json, Cargo.toml and tauri.conf.json.
+
+### Fixed
+- HUD shortcuts never fired while the terminal had focus — xterm.js calls
+  `stopPropagation()` on keys it handles, so the window listener never saw
+  them. Terminal now declines HUD keys via `attachCustomKeyEventHandler`.
+- Tab close control was a `<span>` click handler nested inside the tab
+  `<button>` — keyboard-unreachable and invalid HTML; now sibling buttons.
+- `package.json` declared MIT while LICENSE, the README badge and the app
+  footer all state AGPL-3.0. Now AGPL-3.0-only.
+- Cleared all 25 svelte-check errors, 13 warnings and 2 clippy lints; CI
+  enforces clippy and type-check again.
+
 ### In Progress
 - Phase 6: hardening, signing, public release
 

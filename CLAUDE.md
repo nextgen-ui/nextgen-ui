@@ -20,6 +20,8 @@ Sci-fi terminal emulator — successor to eDEX-UI. Built with Tauri 2 + Rust + S
 - src/lib/components/FileManager.svelte — file browser
 - src/lib/components/HudBackground.svelte — WebGL animated background
 - src/lib/components/Sparkline.svelte — history graph component
+- src/lib/components/OnScreenKeyboard.svelte — on-screen keyboard, writes to active PTY
+- src/lib/shortcuts.ts — HUD shortcut predicate, shared by page + Terminal
 - src/lib/stores/theme.ts — 4 themes: default, tron, matrix, blood
 - src/lib/stores/stats.ts — stats store with history rings
 - src/lib/ipc/index.ts — all Tauri invoke() calls centralized
@@ -43,9 +45,9 @@ Already built:
 - 4 themes with live switcher
 - Multi-tab terminal
 - WebGL animated background
-- Keyboard shortcuts: Ctrl+T/W/B/P/F
+- On-screen keyboard (Ctrl+Shift+K)
+- Keyboard shortcuts: Ctrl+Shift+T/W/B/P/K/F (Shift tier avoids shadowing readline)
 
 ## Next features to build
-1. On-screen keyboard
-2. Custom app icon
-3. SSH session manager
+1. Custom app icon
+2. SSH session manager

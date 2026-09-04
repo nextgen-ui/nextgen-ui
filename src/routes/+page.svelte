@@ -154,10 +154,10 @@
       <button class="icon-btn" on:click={() => showFileManager = !showFileManager}>
         {showFileManager ? '✕ FILES' : '◫ FILES'}
       </button>
-      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+P)">
+      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+Shift+P)">
         {showProcesses ? '✕ PROCS' : '⬡ PROCS'}
       </button>
-      <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+K)">
+      <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+Shift+K)">
         {showKeyboard ? '✕ KEYS' : '◰ KEYS'}
       </button>
       <span class="clock">{formatTime(now)}</span>
@@ -188,7 +188,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+T · Ctrl+W · Ctrl+B · Ctrl+P · Ctrl+K · Ctrl+F</span>
+        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}
