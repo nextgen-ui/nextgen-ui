@@ -132,7 +132,7 @@ Measured on the same machine, both idle:
 | Processes | 15 | 3 |
 | Binary | ~100 MB | 15.5 MB |
 
-Largest remaining item: StatsPanel, ~12.6% of a core.
+Largest remaining item: StatsPanel (~12.6% of a core) — ✅ Optimized via Canvas 2D and compositor transforms.
 
 ---
 

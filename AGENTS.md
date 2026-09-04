@@ -193,18 +193,23 @@ Treat these as approximate and re-baseline before optimising:
 RSS is dominated by `WebKitWebProcess` (~250 MB) and is largely a floor you
 cannot optimise from app code.
 
-### The single largest remaining item
-**`StatsPanel` costs ~12.6 points of CPU** — more than everything fixed in the
-canvas backdrop. Removing it dropped WebKit from 16.3% to 3.7% in a controlled
-A/B. It re-renders 16 per-core bars plus 4 sparklines every second, and each
-`Sparkline` rebuilds its polygon point strings from scratch on every tick. This
-is the highest-value optimisation available and was deliberately deferred.
+### StatsPanel render cost (Resolved)
+`StatsPanel` previously cost ~12.6 points of CPU in WebKitWebProcess due to
+SVG string building/parsing in `Sparkline` and layout reflows from `height`/`width`
+CSS transitions on 16 core bars and main telemetry bars.
+Resolved by:
+1. Replacing SVG Sparkline with a Canvas 2D renderer (zero string allocations,
+   unified stroke & fill path, DPR scaling, visibility throttling).
+2. Transitioning GPU-composited `transform: scaleY()` and `transform: scaleX()`
+   with `will-change: transform`, eliminating layout reflows.
+3. Consolidating stats updates into an atomic `allStats` snapshot with in-place
+   ring buffer management.
 
 ---
 
 ## 8. Open work
 
-1. **`StatsPanel` render cost** (§7) — largest remaining perf win.
+1. **`StatsPanel` render cost** — ✅ Completed (Canvas 2D + compositor transforms).
 2. **Custom app icon** — still the stock Tauri icon, and a Phase 6 release item.
 3. **SSH session manager** — needs an early decision: `russh` vs wrapping the
    system `ssh` binary.
