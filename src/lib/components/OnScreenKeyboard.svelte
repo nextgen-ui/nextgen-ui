@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ptyWrite, ptySecureInput, onPtyOutput } from '$lib/ipc';
+  import { ptyWrite, ptyInputState, onPtyOutput } from '$lib/ipc';
 
   export let sessionId: string;
 
@@ -66,16 +66,20 @@
 
   // ── Secure input ───────────────────────────────────────────────────────────
   // Lighting up keys as they are typed would display a password to anyone
-  // watching the screen. The shell turns echo off around password prompts, so
-  // that is the authoritative signal; a prompt seen in the output additionally
-  // trips it instantly, closing the gap before the next poll. Both fail toward
-  // suppressing rather than showing.
-  const ECHO_POLL_MS = 150;
-  const PROMPT_HOLD_MS = 1500;
+  // watching the screen, so nothing highlights while a secret is being read.
+  // The backend decides from the terminal's termios and the foreground
+  // program; a password-looking prompt in the output additionally trips it
+  // immediately, closing the gap before the next poll.
+  //
+  // That output trigger latches until the shell owns the terminal again. It
+  // used to expire on a fixed timeout, which released mid-password whenever
+  // the backend could not classify the reader — exactly what happened with
+  // sudo's pwfeedback.
+  const POLL_MS = 150;
   const PROMPT_RE = /(password|passphrase|pin)\b[^\n]{0,40}:/i;
 
   let secure = false;
-  let promptHoldUntil = 0;
+  let promptLatched = false;
   let echoTimer: ReturnType<typeof setInterval>;
   let unlistenOutput: (() => void) | null = null;
 
@@ -88,14 +92,15 @@
     if (secure && downCodes.size) downCodes = new Set();
   }
 
-  async function pollEcho() {
-    let reading = false;
+  async function poll() {
     try {
-      reading = await ptySecureInput(sessionId);
+      const st = await ptyInputState(sessionId);
+      // Back at the prompt means whatever was reading has finished.
+      if (st.at_shell_prompt) promptLatched = false;
+      setSecure(st.secret || promptLatched);
     } catch {
-      reading = true; // unknown state is treated as secret
+      setSecure(true); // unknown state is treated as secret
     }
-    setSecure(reading || Date.now() < promptHoldUntil);
   }
 
   // ── Physical key mirroring ─────────────────────────────────────────────────
@@ -118,13 +123,13 @@
     window.addEventListener('keyup', onPhysicalUp, true);
     window.addEventListener('blur', clearHeld);
 
-    await pollEcho();
-    echoTimer = setInterval(pollEcho, ECHO_POLL_MS);
+    await poll();
+    echoTimer = setInterval(poll, POLL_MS);
 
     unlistenOutput = await onPtyOutput(({ session_id, data }) => {
       if (session_id !== sessionId) return;
       if (PROMPT_RE.test(data)) {
-        promptHoldUntil = Date.now() + PROMPT_HOLD_MS;
+        promptLatched = true;
         setSecure(true);
       }
     });
@@ -268,17 +273,20 @@
   .pair{position:relative;display:inline-block;line-height:1}
   .hi{position:absolute;right:100%;bottom:55%;margin-right:3px;font-size:8px;opacity:0.5;letter-spacing:0}
 
-  .cap:hover{color:var(--fg,#c8d8f0)}
-  /* Pressed — physically or by click. Static shadow, only on the few keys that
-     are down, so this never becomes a per-frame repaint. */
-  .cap.down,.cap:active{color:var(--accent,#00c8ff);text-shadow:0 0 10px var(--accent,#00c8ff)}
+  .cap:hover{color:var(--fg,#c8d8f0);background:var(--accent-glow,#00c8ff18)}
+  /* Pressed — physically or by click. The whole key fills so it reads at a
+     glance; static, and only on the few keys actually down, so this never
+     becomes a per-frame repaint. */
+  .cap.down,.cap:active{background:var(--accent,#00c8ff);color:var(--bg,#0a0e1a);text-shadow:none;
+                        box-shadow:0 0 14px var(--accent-glow,#00c8ff33)}
+  .cap.down .hi,.cap:active .hi{opacity:0.75}
   .cap.boxed.down,.cap.boxed:active{border-color:var(--accent,#00c8ff)}
-  .cap.mod.on{color:var(--accent,#00c8ff);text-shadow:0 0 8px var(--accent,#00c8ff)}
+  .cap.mod.on{background:var(--accent,#00c8ff);color:var(--bg,#0a0e1a)}
 
-  /* While a password is being typed nothing lights up at all. */
+  /* While a secret is being typed, nothing lights up at all. */
   .osk.secure .cap.down,
   .osk.secure .cap:active,
-  .osk.secure .cap:hover{color:var(--fg-dim,#c8d8f066);text-shadow:none}
+  .osk.secure .cap:hover{background:none;color:var(--fg-dim,#c8d8f066);text-shadow:none;box-shadow:none}
   .osk.secure .cap.boxed.down,
   .osk.secure .cap.boxed:active{border-color:var(--panel-border,#00c8ff22)}
 </style>

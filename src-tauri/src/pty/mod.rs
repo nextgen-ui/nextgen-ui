@@ -7,6 +7,9 @@ use tauri::{AppHandle, Emitter};
 pub struct PtySession {
     writer: Box<dyn Write + Send>,
     master: Box<dyn portable_pty::MasterPty + Send>,
+    /// Pid of the shell itself. When it is the foreground process group, the
+    /// user is at a prompt rather than inside a program.
+    shell_pid: Option<u32>,
 }
 
 #[derive(Default)]
@@ -52,13 +55,14 @@ pub fn pty_spawn(
         cmd.args(["-NoLogo", "-NoExit"]);
     }
 
-    let _child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    let shell_pid = child.process_id();
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     state.sessions.lock().map_err(|e| e.to_string())?
-        .insert(session_id.clone(), PtySession { writer, master: pair.master });
+        .insert(session_id.clone(), PtySession { writer, master: pair.master, shell_pid });
 
     let app_handle = app.clone();
     let emit_session_id = session_id.clone();
@@ -107,135 +111,117 @@ pub fn pty_resize(
     Ok(())
 }
 
-/// Whether the terminal looks like it is reading a secret.
+/// What the terminal is currently doing with typed input.
+#[derive(serde::Serialize, Clone, Debug, Default)]
+pub struct TerminalInputState {
+    /// Terminal is echoing typed characters itself.
+    pub echo: bool,
+    /// Canonical (line) mode — off for anything reading key by key.
+    pub canonical: bool,
+    /// The shell is the foreground process, i.e. the user is at a prompt.
+    pub at_shell_prompt: bool,
+    /// Name of the foreground program, when it can be determined.
+    pub foreground: Option<String>,
+    /// Best judgement that a secret is being typed.
+    pub secret: bool,
+}
+
+/// Programs that read secrets. Needed because termios alone cannot always tell:
+/// with sudo's `pwfeedback` enabled (the default on Linux Mint) sudo reads key
+/// by key to print asterisks, leaving ICANON off and ECHO off — exactly the
+/// state an ordinary shell prompt sits in, since readline does the same.
+#[cfg(unix)]
+const SECRET_PROGRAMS: &[&str] = &[
+    "sudo", "sudoedit", "su", "doas", "ssh", "sshpass", "scp", "sftp", "ssh-add",
+    "passwd", "chpasswd", "gpg", "gpg2", "openssl", "cryptsetup", "veracrypt",
+    "smbclient", "mysql", "psql", "mongosh", "keyctl", "systemd-ask-password",
+];
+
+#[cfg(unix)]
+fn is_secret_program(name: &str) -> bool {
+    SECRET_PROGRAMS.contains(&name) || name.starts_with("pinentry")
+}
+
+/// Name of the process group currently owning the terminal.
+#[cfg(unix)]
+fn foreground_name(fd: std::os::unix::io::RawFd) -> (Option<i32>, Option<String>) {
+    // SAFETY: fd is a live pty master owned by the caller.
+    let pgrp = unsafe { libc::tcgetpgrp(fd) };
+    if pgrp <= 0 {
+        return (None, None);
+    }
+    let comm = std::fs::read_to_string(format!("/proc/{pgrp}/comm"))
+        .ok()
+        .map(|s| s.trim().to_string());
+    (Some(pgrp), comm)
+}
+
+/// Inspect the terminal to decide whether typed input should be displayed.
 ///
-/// A password prompt (sudo, ssh, getpass, `read -s`) clears ECHO while leaving
-/// canonical mode on. An interactive shell also runs with ECHO clear — readline
-/// echoes characters itself — but turns ICANON off to do so. So "ICANON set and
-/// ECHO clear" is what distinguishes a password prompt from an ordinary prompt.
+/// Treated as secret when echo is off and either:
+///   - canonical mode is on, which is what getpass and `read -s` leave; or
+///   - a secret-reading program owns the terminal, which covers sudo with
+///     pwfeedback, where termios looks exactly like a shell prompt.
 ///
-/// The on-screen keyboard uses this to stop lighting up keys while a password
-/// is typed, which would otherwise display it to anyone watching the screen.
-///
-/// On Linux, TCGETS against the master returns the slave's termios, so this
-/// reads the state the foreground program actually set.
+/// Deliberately *not* secret when the shell itself is in the foreground: an
+/// interactive shell always runs with echo off because readline echoes
+/// characters itself. Programs like vim or less also run with echo off, but
+/// they are not in the list, so the keyboard keeps working inside them.
 #[tauri::command]
-pub fn pty_secure_input(
+pub fn pty_input_state(
     state: tauri::State<'_, PtyState>,
     session_id: String,
-) -> Result<bool, String> {
+) -> Result<TerminalInputState, String> {
     let sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     let session = sessions.get(&session_id).ok_or("session not found")?;
 
     #[cfg(unix)]
     {
         match session.master.as_raw_fd() {
-            Some(fd) => Ok(secure_input_fd(fd)),
-            None => Ok(false),
+            Some(fd) => Ok(input_state_fd(fd, session.shell_pid)),
+            // Cannot inspect: assume secret rather than risk displaying one.
+            None => Ok(TerminalInputState { secret: true, ..Default::default() }),
         }
     }
 
     #[cfg(not(unix))]
     {
         let _ = session;
-        Ok(false)
+        Ok(TerminalInputState::default())
     }
 }
 
-/// True when the pty is in canonical mode with echo disabled.
-///
-/// Fails closed: an unreadable state reports "secret", so the caller suppresses
-/// display rather than risking showing a password.
 #[cfg(unix)]
-fn secure_input_fd(fd: std::os::unix::io::RawFd) -> bool {
-    // SAFETY: the caller holds the live master pty that owns this fd.
-    unsafe {
-        let mut termios: libc::termios = std::mem::zeroed();
-        if libc::tcgetattr(fd, &mut termios) != 0 {
-            return true;
+fn input_state_fd(
+    fd: std::os::unix::io::RawFd,
+    shell_pid: Option<u32>,
+) -> TerminalInputState {
+    // SAFETY: fd is a live pty master owned by the caller.
+    let (echo, canonical) = unsafe {
+        let mut t: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(fd, &mut t) != 0 {
+            return TerminalInputState { secret: true, ..Default::default() };
         }
-        let echo = termios.c_lflag & libc::ECHO != 0;
-        let canonical = termios.c_lflag & libc::ICANON != 0;
-        canonical && !echo
-    }
-}
+        (t.c_lflag & libc::ECHO != 0, t.c_lflag & libc::ICANON != 0)
+    };
 
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use portable_pty::PtySize;
-    use std::time::{Duration, Instant};
+    let (pgrp, foreground) = foreground_name(fd);
+    let at_shell_prompt = match (pgrp, shell_pid) {
+        (Some(p), Some(shell)) => p as u32 == shell,
+        _ => false,
+    };
 
-    struct Fixture {
-        _child: Box<dyn portable_pty::Child + Send + Sync>,
-        writer: Box<dyn Write + Send>,
-        fd: std::os::unix::io::RawFd,
-        _master: Box<dyn portable_pty::MasterPty + Send>,
-    }
+    // Canonical mode with echo off is a line-oriented secret read (getpass,
+    // `read -s`) whoever owns the terminal — `read -s` is a shell builtin, so
+    // the shell itself is the foreground process there.
+    // Raw mode with echo off is ambiguous: it is equally an ordinary shell
+    // prompt (readline), a full-screen program, or sudo with pwfeedback. Only
+    // the foreground program separates them.
+    let secret = !echo
+        && (canonical
+            || (!at_shell_prompt && foreground.as_deref().is_some_and(is_secret_program)));
 
-    fn shell() -> Fixture {
-        let pty = native_pty_system();
-        let pair = pty
-            .openpty(PtySize { rows: 24, cols: 80, pixel_width: 0, pixel_height: 0 })
-            .expect("openpty");
-        let mut cmd = CommandBuilder::new("/bin/sh");
-        cmd.env("PS1", "");
-        let child = pair.slave.spawn_command(cmd).expect("spawn");
-        let fd = pair.master.as_raw_fd().expect("master fd");
-
-        // Drain output so the shell never blocks on a full buffer.
-        let mut reader = pair.master.try_clone_reader().expect("reader");
-        std::thread::spawn(move || {
-            let mut buf = [0u8; 1024];
-            while let Ok(n) = reader.read(&mut buf) {
-                if n == 0 { break; }
-            }
-        });
-
-        let writer = pair.master.take_writer().expect("writer");
-        Fixture { _child: child, writer, fd, _master: pair.master }
-    }
-
-    fn wait_for(cond: impl Fn() -> bool) -> bool {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < deadline {
-            if cond() { return true; }
-            std::thread::sleep(Duration::from_millis(25));
-        }
-        false
-    }
-
-    /// Echo off with canonical mode on is what a password prompt looks like.
-    #[test]
-    fn password_prompt_is_detected() {
-        let mut f = shell();
-        assert!(!secure_input_fd(f.fd), "an ordinary prompt is not secret");
-
-        f.writer.write_all(b"stty -echo\n").unwrap();
-        f.writer.flush().ok();
-        assert!(wait_for(|| secure_input_fd(f.fd)), "echo off + icanon must read as secret");
-
-        f.writer.write_all(b"stty echo\n").unwrap();
-        f.writer.flush().ok();
-        assert!(wait_for(|| !secure_input_fd(f.fd)), "restoring echo must clear it");
-    }
-
-    /// Regression: an interactive shell's readline also clears ECHO, but turns
-    /// ICANON off to do its own echoing. Treating that as a password prompt
-    /// suppressed the keyboard permanently at an ordinary prompt.
-    #[test]
-    fn readline_raw_mode_is_not_secret() {
-        let mut f = shell();
-        f.writer.write_all(b"stty -icanon -echo\n").unwrap();
-        f.writer.flush().ok();
-
-        // Give the setting time to land, then confirm it never reads as secret.
-        std::thread::sleep(Duration::from_millis(300));
-        assert!(
-            !secure_input_fd(f.fd),
-            "raw mode (readline) must not be mistaken for a password prompt"
-        );
-    }
+    TerminalInputState { echo, canonical, at_shell_prompt, foreground, secret }
 }
 
 #[tauri::command]
@@ -259,5 +245,117 @@ fn default_shell() -> String {
     #[cfg(not(target_os = "windows"))]
     {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use portable_pty::PtySize;
+    use std::time::{Duration, Instant};
+
+    struct Sh {
+        _child: Box<dyn portable_pty::Child + Send + Sync>,
+        writer: Box<dyn Write + Send>,
+        fd: std::os::unix::io::RawFd,
+        pid: Option<u32>,
+        _master: Box<dyn portable_pty::MasterPty + Send>,
+    }
+
+    fn interactive_shell() -> Sh {
+        let pty = native_pty_system();
+        let pair = pty
+            .openpty(PtySize { rows: 24, cols: 80, pixel_width: 0, pixel_height: 0 })
+            .expect("openpty");
+        let mut cmd = CommandBuilder::new("/bin/bash");
+        cmd.arg("-i");
+        cmd.env("TERM", "xterm");
+        cmd.env("PS1", "$ ");
+        let child = pair.slave.spawn_command(cmd).expect("spawn");
+        let pid = child.process_id();
+        let fd = pair.master.as_raw_fd().expect("fd");
+
+        let mut reader = pair.master.try_clone_reader().expect("reader");
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 1024];
+            while let Ok(n) = reader.read(&mut buf) { if n == 0 { break; } }
+        });
+
+        let writer = pair.master.take_writer().expect("writer");
+        std::thread::sleep(Duration::from_millis(500));
+        Sh { _child: child, writer, fd, pid, _master: pair.master }
+    }
+
+    fn wait_for(sh: &Sh, want: bool) -> TerminalInputState {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut last = input_state_fd(sh.fd, sh.pid);
+        while Instant::now() < deadline {
+            last = input_state_fd(sh.fd, sh.pid);
+            if last.secret == want { return last; }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        last
+    }
+
+    /// An interactive shell runs with echo off because readline echoes for
+    /// itself. That must never be mistaken for a password prompt.
+    #[test]
+    fn shell_prompt_is_not_secret() {
+        let sh = interactive_shell();
+        let st = input_state_fd(sh.fd, sh.pid);
+        assert!(!st.secret, "shell prompt must not be secret: {st:?}");
+        assert!(st.at_shell_prompt, "shell should own the terminal: {st:?}");
+    }
+
+    /// getpass and `read -s` leave canonical mode on with echo off.
+    #[test]
+    fn canonical_password_prompt_is_secret() {
+        let mut sh = interactive_shell();
+        sh.writer.write_all(b"read -s -p 'Password: ' x\n").unwrap();
+        sh.writer.flush().ok();
+        let st = wait_for(&sh, true);
+        assert!(st.secret, "read -s must be secret: {st:?}");
+    }
+
+    /// Regression: sudo with `pwfeedback` (the default on Linux Mint) reads key
+    /// by key to print asterisks, so it leaves ICANON off and ECHO off — the
+    /// same termios an ordinary shell prompt has. Only the foreground program
+    /// distinguishes them. Simulated with a binary named `sudo` so the test
+    /// needs no privileges.
+    #[test]
+    fn pwfeedback_style_sudo_is_secret() {
+        let dir = std::env::temp_dir().join(format!("ngui-sudo-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fake = dir.join("sudo");
+        std::fs::copy("/bin/sleep", &fake).unwrap();
+
+        let mut sh = interactive_shell();
+        sh.writer
+            .write_all(format!("stty -icanon -echo; {} 30\n", fake.display()).as_bytes())
+            .unwrap();
+        sh.writer.flush().ok();
+
+        let st = wait_for(&sh, true);
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(
+            st.secret,
+            "raw-mode sudo (pwfeedback) must be secret: {st:?}"
+        );
+        assert!(!st.canonical, "this case is specifically non-canonical: {st:?}");
+    }
+
+    /// Full-screen programs also run raw with echo off, but are not reading
+    /// secrets — the keyboard should keep working inside them.
+    #[test]
+    fn full_screen_program_is_not_secret() {
+        let mut sh = interactive_shell();
+        sh.writer.write_all(b"stty -icanon -echo; sleep 30\n").unwrap();
+        sh.writer.flush().ok();
+        std::thread::sleep(Duration::from_millis(700));
+        let st = input_state_fd(sh.fd, sh.pid);
+        assert!(
+            !st.secret,
+            "an ordinary raw-mode program must not be secret: {st:?}"
+        );
     }
 }

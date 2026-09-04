@@ -15,13 +15,22 @@ export async function ptyResize(sessionId: string, cols: number, rows: number) {
 export async function ptyClose(sessionId: string) {
   return invoke<void>('pty_close', { sessionId });
 }
-/**
- * Whether the terminal looks like it is reading a secret — canonical mode with
- * echo off, as sudo/ssh/getpass leave it. An ordinary shell prompt is not,
- * even though readline also runs with echo off.
- */
-export async function ptySecureInput(sessionId: string) {
-  return invoke<boolean>('pty_secure_input', { sessionId });
+export interface TerminalInputState {
+  /** Terminal is echoing typed characters itself. */
+  echo: boolean;
+  /** Canonical (line) mode — off for anything reading key by key. */
+  canonical: boolean;
+  /** The shell owns the terminal, i.e. the user is at a prompt. */
+  at_shell_prompt: boolean;
+  /** Foreground program name, when it can be determined. */
+  foreground: string | null;
+  /** Best judgement that a secret is being typed. */
+  secret: boolean;
+}
+
+/** Inspect what the terminal is doing with typed input. */
+export async function ptyInputState(sessionId: string) {
+  return invoke<TerminalInputState>('pty_input_state', { sessionId });
 }
 export async function onPtyOutput(
   callback: (payload: { session_id: string; data: string }) => void
