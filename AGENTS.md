@@ -211,15 +211,15 @@ Resolved by:
 
 1. **`StatsPanel` render cost** — ✅ Completed (Canvas 2D + compositor transforms).
 2. **Sound design** — ✅ Completed (Authentic eDEX-UI sound FX with Web Audio API, pitch variance, rate throttling, 0% idle cost).
-3. **Custom app icon** — still the stock Tauri icon, and a Phase 6 release item.
-4. **SSH session manager** — needs an early decision: `russh` vs wrapping the
+3. **Network detail & 3D Geolocation** — ✅ Completed (Real-time TCP ping, public/local IP, interface detection, and 3D pulsing targeting reticle pin on the rotating globe).
+4. **Custom app icon** — still the stock Tauri icon, and a Phase 6 release item.
+5. **SSH session manager** — needs an early decision: `russh` vs wrapping the
    system `ssh` binary.
-5. Themes on disk: `themes/` has only `default/theme.json`; the other three live
+6. Themes on disk: `themes/` has only `default/theme.json`; the other three live
    only in `src/lib/stores/theme.ts`, so the JSON theme system described in the
    ADRs is not actually loading from disk yet.
-6. Feature ideas ranked by identity-per-hour, from a review of what eDEX-UI had
-   and what a 2026 version could beat it at: network detail (public IP, ping,
-   geolocation plotted on the existing globe), CPU temperature / battery / load
+7. Feature ideas ranked by identity-per-hour, from a review of what eDEX-UI had
+   and what a 2026 version could beat it at: CPU temperature / battery / load
    average / disk capacity (all already exposed by `sysinfo`), GPU monitoring,
    split panes, a settings GUI over the existing TOML config, command palette.
 6. CI was red from August until 2026-09-04 and is now fixed; confirm the first

@@ -1,5 +1,6 @@
 mod config;
 mod fs;
+mod net;
 mod pty;
 mod stats;
 
@@ -27,6 +28,8 @@ pub fn run() {
             config::save_config,
             fs::fs_list_dir,
             fs::fs_home_dir,
+            net::get_local_net_info,
+            net::measure_ping,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

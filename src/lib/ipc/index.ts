@@ -86,3 +86,20 @@ export async function killProcess(pid: number) {
 export async function setProcessStream(enabled: boolean) {
   return invoke<void>('set_process_stream', { enabled });
 }
+
+// ── Network & Geolocation ───────────────────────────────────────────────────
+
+export interface LocalNetInfo {
+  local_ip: string | null;
+  interface_name: string | null;
+  ping_ms: number | null;
+}
+
+export async function getLocalNetInfo() {
+  return invoke<LocalNetInfo>('get_local_net_info');
+}
+
+export async function measurePing() {
+  return invoke<number | null>('measure_ping');
+}
+

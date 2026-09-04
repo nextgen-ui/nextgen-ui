@@ -3,6 +3,7 @@
   import { allStats, updateStats, formatBytes, formatPercent, type StatsSnapshot } from '$lib/stores/stats';
   import { onSystemStats } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
+  import { networkState } from '$lib/stores/network';
   import Sparkline from './Sparkline.svelte';
 
   let unlisten: (() => void) | null = null;
@@ -149,6 +150,15 @@
     <div class="sparkline-wrap">
       <Sparkline data={netOutHist} max={maxNetOut} color={theme.green} height={22} width={180} />
     </div>
+    <div class="net-status-row">
+      <span class="net-badge" class:live={$networkState.online}>
+        {$networkState.online ? '● ONLINE' : '○ OFFLINE'}
+      </span>
+      {#if $networkState.pingMs !== null}
+        <span class="net-ping">⚡ {$networkState.pingMs}ms</span>
+      {/if}
+      <span class="net-ip">{$networkState.publicIp || $networkState.localIp || ''}</span>
+    </div>
   </div>
 
   <div class="divider"></div>
@@ -214,4 +224,10 @@
   .core-val { font-size: 7px; color: var(--fg-dim, #c8d8f033); }
 
   .divider { height: 1px; background: var(--panel-border, #00c8ff11); flex-shrink: 0; }
+
+  .net-status-row { display: flex; align-items: center; justify-content: space-between; font-size: 8px; letter-spacing: 0.08em; padding-top: 4px; }
+  .net-badge { color: var(--fg-dim, #c8d8f044); font-size: 7px; }
+  .net-badge.live { color: var(--green, #00ffb3); }
+  .net-ping { color: var(--accent, #00c8ff); font-size: 8px; }
+  .net-ip { color: var(--fg-dim, #c8d8f066); font-family: inherit; font-size: 8px; }
 </style>
