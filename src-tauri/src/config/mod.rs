@@ -2,13 +2,21 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::Manager;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub theme: String,
     pub shell: String,
     pub font_size: u32,
     pub stats_width: u32,
+    #[serde(default = "default_true")]
+    pub audio_enabled: bool,
+    #[serde(default = "default_volume")]
+    pub audio_volume: f32,
 }
+
+fn default_true() -> bool { true }
+fn default_volume() -> f32 { 0.6 }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -17,6 +25,8 @@ impl Default for AppConfig {
             shell: "".into(),
             font_size: 14,
             stats_width: 230,
+            audio_enabled: true,
+            audio_volume: 0.6,
         }
     }
 }
@@ -45,4 +55,26 @@ pub fn save_config(app: tauri::AppHandle, config: AppConfig) -> Result<(), Strin
     let toml = toml::to_string(&config).map_err(|e| e.to_string())?;
     fs::write(&path, toml).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_is_valid() {
+        let cfg = AppConfig::default();
+        assert_eq!(cfg.theme, "default");
+        assert_eq!(cfg.font_size, 14);
+        assert!(cfg.audio_enabled);
+        assert!((cfg.audio_volume - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn toml_serialization_and_deserialization() {
+        let cfg = AppConfig::default();
+        let toml_str = toml::to_string(&cfg).expect("serialize toml");
+        let parsed: AppConfig = toml::from_str(&toml_str).expect("deserialize toml");
+        assert_eq!(cfg, parsed);
+    }
 }

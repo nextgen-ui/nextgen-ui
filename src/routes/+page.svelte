@@ -11,6 +11,8 @@
   import { isAppShortcut } from '$lib/shortcuts';
   import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
   import { initNetworkService } from '$lib/stores/network';
+  import { loadConfig, appConfig } from '$lib/stores/config';
+  import CommandPalette from '$lib/components/CommandPalette.svelte';
 
   let now = new Date();
   let uptime = 0;
@@ -22,8 +24,22 @@
   let showProcesses = false;
   let showKeyboard = false;
   let showGlobe = true;
+  let showPalette = false;
+  let paletteTab: 'commands' | 'settings' = 'commands';
   let clockInterval: ReturnType<typeof setInterval>;
   let uptimeInterval: ReturnType<typeof setInterval>;
+
+  function openPalette(tab: 'commands' | 'settings' = 'commands') {
+    showPalette = true;
+    paletteTab = tab;
+    playSound('panels');
+  }
+
+  function togglePalette(tab: 'commands' | 'settings' = 'commands') {
+    showPalette = !showPalette;
+    paletteTab = tab;
+    playSound('panels');
+  }
 
   let tabs: { id: string; label: string }[] = [{ id: 'main', label: 'SHELL 1' }];
   let activeTab = 'main';
@@ -84,6 +100,7 @@
       case 'k': toggleKeyboard(); break;
       case 'g': toggleGlobe(); break;
       case 's': toggleSound(); break;
+      case 'c': openPalette('commands'); break;
     }
   }
 
@@ -145,6 +162,7 @@
 
   onMount(() => {
     applyThemeCssVars($currentTheme);
+    loadConfig();
     initNetworkService();
     runBoot();
     clockInterval = setInterval(() => { now = new Date(); }, 1000);
@@ -213,6 +231,9 @@
       <button class="icon-btn" on:click={toggleSound} title="Sound effects (Ctrl+Shift+S)">
         {$soundState.enabled ? '🔊 SFX' : '🔈 MUTE'}
       </button>
+      <button class="icon-btn" on:click={() => openPalette('commands')} title="Command Palette & Config (Ctrl+Shift+C)">
+        ⚙ CMD
+      </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
       <span class="uptime">UP {formatUptime(uptime)}</span>
@@ -241,7 +262,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·G·S·F</span>
+        <span class="tab-hint">Ctrl+Shift+ C·T·W·B·P·K·G·S·F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}
@@ -281,6 +302,18 @@
     <span class="spacer"></span>
     <span class="footer-dim">nextgen-ui © 2026 — AGPL-3.0 — github.com/nextgen-ui</span>
   </footer>
+
+  <CommandPalette
+    bind:show={showPalette}
+    bind:activeTab={paletteTab}
+    {toggleFileManager}
+    {toggleProcesses}
+    {toggleKeyboard}
+    {toggleGlobe}
+    {toggleFullscreen}
+    {addTab}
+    closeTab={() => closeTab(activeTab)}
+  />
 </div>
 
 <style>
