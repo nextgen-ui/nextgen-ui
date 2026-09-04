@@ -9,6 +9,7 @@
   import GlobeWidget from '$lib/components/GlobeWidget.svelte';
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
+  import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
 
   let now = new Date();
   let uptime = 0;
@@ -28,17 +29,46 @@
   let tabCounter = 2;
 
   function addTab() {
+    playSound('folder');
     const id = `shell-${tabCounter}`;
     tabs = [...tabs, { id, label: `SHELL ${tabCounter}` }];
     activeTab = id;
     tabCounter++;
   }
 
+  function selectTab(id: string) {
+    if (activeTab !== id) {
+      activeTab = id;
+      playSound('folder');
+    }
+  }
+
   function closeTab(id: string) {
     if (tabs.length === 1) return;
+    playSound('folder');
     const idx = tabs.findIndex((t) => t.id === id);
     tabs = tabs.filter((t) => t.id !== id);
     activeTab = tabs[Math.max(0, idx - 1)].id;
+  }
+
+  function toggleFileManager() {
+    showFileManager = !showFileManager;
+    playSound('panels');
+  }
+
+  function toggleProcesses() {
+    showProcesses = !showProcesses;
+    playSound('panels');
+  }
+
+  function toggleKeyboard() {
+    showKeyboard = !showKeyboard;
+    playSound(showKeyboard ? 'keyboard' : 'panels');
+  }
+
+  function toggleGlobe() {
+    showGlobe = !showGlobe;
+    playSound('panels');
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -47,12 +77,20 @@
     switch (e.key.toLowerCase()) {
       case 't': addTab(); break;
       case 'w': closeTab(activeTab); break;
-      case 'f': toggleFullscreen(); break;
-      case 'b': showFileManager = !showFileManager; break;
-      case 'p': showProcesses = !showProcesses; break;
-      case 'k': showKeyboard = !showKeyboard; break;
-      case 'g': showGlobe = !showGlobe; break;
+      case 'f': toggleFullscreen(); playSound('panels'); break;
+      case 'b': toggleFileManager(); break;
+      case 'p': toggleProcesses(); break;
+      case 'k': toggleKeyboard(); break;
+      case 'g': toggleGlobe(); break;
+      case 's': toggleSound(); break;
     }
+  }
+
+  function handleCaptureKeydown(e: KeyboardEvent) {
+    if (isAppShortcut(e)) return;
+    // If the terminal container has focus, term.onKey handles it directly
+    if (document.activeElement?.closest('.terminal-container')) return;
+    playKeySound(e.key);
   }
 
   const bootLines = [
@@ -68,12 +106,14 @@
     for (const line of bootLines) {
       for (let i = 0; i <= line.length; i++) {
         bootText = line.slice(0, i);
+        if (i % 2 === 0) playSound('stdin', { pitchVariance: true, volumeScale: 0.4 });
         await sleep(14);
       }
       await sleep(80);
       bootText = '';
     }
     booting = false;
+    playSound('granted');
   }
 
   function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
@@ -108,6 +148,7 @@
     clockInterval = setInterval(() => { now = new Date(); }, 1000);
     uptimeInterval = setInterval(() => { uptime++; }, 1000);
     window.addEventListener('keydown', handleKeydown);
+    window.addEventListener('keydown', handleCaptureKeydown, true);
   });
 
   onDestroy(() => {
@@ -115,6 +156,7 @@
     clearInterval(uptimeInterval);
     unsubTheme();
     window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keydown', handleCaptureKeydown, true);
   });
 </script>
 
@@ -149,22 +191,25 @@
           <div class="theme-dropdown">
             {#each Object.entries(themes) as [key, t]}
               <button class="theme-option" class:active={theme.name === t.name} style="color:{t.accent}"
-                on:click={() => { setTheme(key); showThemePicker = false; }}>● {t.name}</button>
+                on:click={() => { setTheme(key); showThemePicker = false; playSound('theme'); }}>● {t.name}</button>
             {/each}
           </div>
         {/if}
       </div>
-      <button class="icon-btn" on:click={() => showFileManager = !showFileManager}>
+      <button class="icon-btn" on:click={toggleFileManager}>
         {showFileManager ? '✕ FILES' : '◫ FILES'}
       </button>
-      <button class="icon-btn" on:click={() => showProcesses = !showProcesses} title="Processes (Ctrl+Shift+P)">
+      <button class="icon-btn" on:click={toggleProcesses} title="Processes (Ctrl+Shift+P)">
         {showProcesses ? '✕ PROCS' : '⬡ PROCS'}
       </button>
-      <button class="icon-btn" on:click={() => showKeyboard = !showKeyboard} title="On-screen keyboard (Ctrl+Shift+K)">
+      <button class="icon-btn" on:click={toggleKeyboard} title="On-screen keyboard (Ctrl+Shift+K)">
         {showKeyboard ? '✕ KEYS' : '◰ KEYS'}
       </button>
-      <button class="icon-btn" on:click={() => showGlobe = !showGlobe} title="World view (Ctrl+Shift+G)">
+      <button class="icon-btn" on:click={toggleGlobe} title="World view (Ctrl+Shift+G)">
         {showGlobe ? '✕ GLOBE' : '◍ GLOBE'}
+      </button>
+      <button class="icon-btn" on:click={toggleSound} title="Sound effects (Ctrl+Shift+S)">
+        {$soundState.enabled ? '🔊 SFX' : '🔈 MUTE'}
       </button>
       <span class="clock">{formatTime(now)}</span>
       <span class="date">{formatDate(now)}</span>
@@ -185,7 +230,7 @@
       <div class="tab-bar">
         {#each tabs as tab}
           <div class="tab-wrap" class:active={activeTab === tab.id}>
-            <button class="tab" class:solo={tabs.length === 1} on:click={() => activeTab = tab.id}>
+            <button class="tab" class:solo={tabs.length === 1} on:click={() => selectTab(tab.id)}>
               {tab.label}
             </button>
             {#if tabs.length > 1}
@@ -194,7 +239,7 @@
           </div>
         {/each}
         <button class="tab-add" on:click={addTab}>＋</button>
-        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·G·F</span>
+        <span class="tab-hint">Ctrl+Shift+ T·W·B·P·K·G·S·F</span>
       </div>
       <div class="terminal-container">
         {#each tabs as tab}

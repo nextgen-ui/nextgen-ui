@@ -14,7 +14,7 @@
  *
  * Both sides must agree, so this is the single source of truth.
  */
-export const APP_SHORTCUT_KEYS = ['t', 'w', 'b', 'p', 'k', 'g', 'f'] as const;
+export const APP_SHORTCUT_KEYS = ['t', 'w', 'b', 'p', 'k', 'g', 's', 'f'] as const;
 
 export function isAppShortcut(e: KeyboardEvent): boolean {
   if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return false;
