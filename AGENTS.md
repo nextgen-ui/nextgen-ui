@@ -4,7 +4,9 @@ Canonical context for any AI assistant or new contributor working on this
 repo. `CLAUDE.md` and `GEMINI.md` point here; keep this file as the single
 source of truth and update it as things change.
 
-Last updated: 2026-09-04, at tag `v1.1.0`.
+Last updated: 2026-09-22, on `dev` after `b7a88b4` (command palette merge).
+**Starting a new session? Read §2 and §11 first** — §11 is the running handoff
+log and says exactly what is in flight and what to do next.
 
 ---
 
@@ -35,7 +37,9 @@ Do not let that regress. See §7.
 ## 2. Current status
 
 **v1.1.0 is tagged and pushed.** `dev` is the active branch; `main` is still at
-`v1.0.0` and was deliberately not advanced.
+`v1.0.0` and was deliberately not advanced. Three features landed on `dev` after
+the tag (sound, network/geo, command palette) and are unreleased. CI on `dev`
+has been green on every push since 2026-09-04.
 
 Built and working:
 
@@ -49,6 +53,16 @@ Built and working:
   keyboard, suppresses all display while a password is typed
 - World-view globe: rotating point cloud of real coastlines
 - WebGL terminal renderer (`@xterm/addon-webgl`) with DOM fallback
+- Sound FX (Web Audio, `src/lib/audio.ts`) — keypress/UI sounds, pitch
+  variance, rate-throttled, zero idle cost
+- Network detail — TCP ping, public/local IP, interface detection
+  (`src-tauri/src/net`), plus a pulsing geolocation pin on the globe
+- Command palette + settings GUI (Ctrl+Shift+C) — fuzzy search, keyboard nav,
+  font/volume sliders, persisted to TOML
+
+In flight (uncommitted, then committed to `feature/hardware-telemetry` — see
+§11): hardware telemetry in the stats panel — CPU/GPU temperature, load
+average, per-mount disk capacity, battery, system uptime.
 
 Not built yet — see §8.
 
@@ -65,15 +79,18 @@ src-tauri/src/
                       on the panel being open — see §7.
   fs/mod.rs           Directory listing
   config/mod.rs       TOML config, persisted to the OS app config dir
+  net/mod.rs          Ping, public/local IP, interface detection
 src/lib/
   components/         Terminal, StatsPanel, ProcessMonitor, FileManager,
-                      HudBackground, GlobeWidget, Sparkline, OnScreenKeyboard
+                      HudBackground, GlobeWidget, Sparkline, OnScreenKeyboard,
+                      CommandPalette
+  audio.ts            Web Audio sound FX engine
   secureInput.ts      Decides when typed input must not be displayed. Unit
                       tested — do not inline this logic back into the component
   shortcuts.ts        HUD shortcut predicate, shared by the page and Terminal
   data/landmask.ts    Packed Natural Earth land mask for the globe (~2.3 KB)
   ipc/index.ts        All Tauri invoke() calls, centralised
-  stores/             theme, stats (history rings), config
+  stores/             theme, stats (history rings), config, network
 src/routes/+page.svelte   The whole HUD layout and its CSS
 tools/                Measurement and screenshot helpers (§6)
 docs/                 ARCHITECTURE, ROADMAP, CONTRIBUTING, ADRs
@@ -110,16 +127,19 @@ cargo test  --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-All four gates are green at `v1.1.0` and are enforced in CI. Keep them that way:
+All four gates are green (last verified 2026-09-22) and are enforced in CI. Keep them that way:
 CI previously had them disabled with `continue-on-error` because the tree was
 dirty, which made the badge meaningless.
 
 `cargo fmt` is deliberately **not** enforced. rustfmt wants a ~263-line reflow
 that would undo the deliberately compact style used throughout `src-tauri`.
-Settle that as a project decision before turning it on.
+Settle that as a project decision before turning it on. (Exception:
+`stats/mod.rs` was rustfmt'd wholesale in the hardware-telemetry work, so it no
+longer matches the compact style of its neighbours.)
 
-Tests: 4 Rust (pty termios detection) + 8 TypeScript (secure-input state
-machine). `pnpm test` uses node's built-in runner with `--experimental-strip-types`,
+Tests, as of 2026-09-22: 9 Rust (pty termios detection ×4, config ×2, net ×2,
+stats ×1) + 20 TypeScript across `secureInput`, `audio`, and the `config`,
+`network` and `stats` stores. `pnpm test` uses node's built-in runner with `--experimental-strip-types`,
 so there is no test framework dependency; that is why `tsconfig.json` sets
 `allowImportingTsExtensions` and test files import with an explicit `.ts`.
 
@@ -209,26 +229,37 @@ Resolved by:
 
 ## 8. Open work
 
-1. **`StatsPanel` render cost** — ✅ Completed (Canvas 2D + compositor transforms).
-2. **Sound design** — ✅ Completed (Authentic eDEX-UI sound FX with Web Audio API, pitch variance, rate throttling, 0% idle cost).
-3. **Network detail & 3D Geolocation** — ✅ Completed (Real-time TCP ping, public/local IP, interface detection, and 3D pulsing targeting reticle pin on the rotating globe).
-4. **Command Palette & Settings GUI** — ✅ Completed (Ctrl+Shift+C cyber modal, fuzzy search, keyboard navigation, TOML persistence, live font & volume sliders).
-5. **Custom app icon** — still the stock Tauri icon, and a Phase 6 release item.
+Done since v1.1.0 (on `dev`, unreleased): StatsPanel render cost (Canvas 2D +
+compositor transforms), sound design, network detail + globe geolocation pin,
+command palette + settings GUI. CI confirmed green on `dev` since 2026-09-04.
+
+Remaining, roughly in priority order:
+
+1. **Finish hardware telemetry** (`feature/hardware-telemetry`) — see §11 for
+   the exact checklist. Mostly needs an idle-CPU measurement and polish.
+2. **Release workflow is untested since the CI fix.** The `Release` run for tag
+   `v1.1.0` failed (2026-09-04 09:33Z), *before* the CI fixes landed, so no
+   v1.1.0 binaries were ever published. The workflow was patched afterwards but
+   has not run since. Verify it before cutting v1.2.0.
+3. **Cut v1.2.0**: merge `dev` → `main`, tag, confirm the release job builds on
+   all three OSes. Bump version in package.json, Cargo.toml, tauri.conf.json.
+4. **Custom app icon** — still the stock Tauri icon; a Phase 6 release item.
+5. **Themes on disk**: `themes/` has only `default/theme.json`; the other three
+   live only in `src/lib/stores/theme.ts`, so the JSON theme system described
+   in the ADRs is not actually loading from disk yet.
 6. **SSH session manager** — needs an early decision: `russh` vs wrapping the
    system `ssh` binary.
-7. Themes on disk: `themes/` has only `default/theme.json`; the other three live
-   only in `src/lib/stores/theme.ts`, so the JSON theme system described in the
-   ADRs is not actually loading from disk yet.
-8. Feature ideas ranked by identity-per-hour, from a review of what eDEX-UI had
-   and what a 2026 version could beat it at: CPU temperature / battery / load
-   average / disk capacity (all already exposed by `sysinfo`), GPU monitoring,
+7. Further ideas ranked by identity-per-hour: GPU utilisation (not just temp),
    split panes.
-6. CI was red from August until 2026-09-04 and is now fixed; confirm the first
-   green run. The causes are worth knowing: the Rust job never installed the
-   Linux system dependencies, so clippy and tests could not build Tauri at all,
-   and `cache: pnpm` in `actions/setup-node` failed on every runner. pnpm's
-   version now comes from `packageManager` in package.json rather than being
-   duplicated in YAML, and the store is cached explicitly.
+8. Housekeeping: stale local branch `feature/on-screen-keyboard` and remote
+   `feature/process-monitor` / `feature/visual-overhaul` are all merged — prune
+   once confirmed. Decide on `cargo fmt` (§5).
+
+Historical note on the CI fix, worth knowing: the Rust job never installed the
+Linux system dependencies, so clippy and tests could not build Tauri at all,
+and `cache: pnpm` in `actions/setup-node` failed on every runner. pnpm's
+version now comes from `packageManager` in package.json rather than being
+duplicated in YAML, and the store is cached explicitly.
 
 ---
 
@@ -287,3 +318,46 @@ Each of these cost time and is not obvious from the code.
   because of that.
 - Fail closed on anything touching secrets: if state cannot be determined,
   suppress display rather than risk showing a password.
+
+---
+
+## 11. Session handoff log
+
+Newest first. Every session appends an entry here before stopping: what was
+done, what is left half-finished, and the next concrete step. Keep entries
+short; move anything durable into the sections above.
+
+### 2026-09-22 — resumed after an 18-day gap
+
+**Found:** `dev` clean at `b7a88b4` and in sync with `origin/dev`, plus an
+uncommitted hardware-telemetry feature dated 2026-09-05 (no commit, no notes).
+It touched `stats/mod.rs`, `StatsPanel.svelte`, `ipc/index.ts`,
+`stores/stats.ts` and added `stores/stats.test.ts`.
+
+**Did:**
+- Ran all four gates against the WIP — all green.
+- Restored four "why" comments the WIP had silently deleted (process refresh
+  kind, rank-then-allocate, single-pid kill refresh, core bar minimum).
+- Moved the WIP onto `feature/hardware-telemetry` and committed it there.
+  **Not merged into `dev`, not pushed.**
+- Brought this file and CHANGELOG up to date.
+
+**Hardware telemetry — what's left before merging to `dev`:**
+- [ ] **Measure idle CPU** (§7), focused and unfocused, against `dev`. The
+      emitter now also calls `Components::refresh` (hwmon sysfs reads), reads
+      `/sys/class/power_supply` and collects disk capacity *every second*. If
+      it costs anything measurable, move temps/disks/battery onto a slower
+      cadence (e.g. every 5th tick) — they don't change at 1 Hz.
+- [ ] Look at it running and screenshot it (§6.2); it has never been seen.
+- [ ] `collect_thermals_and_temps` falls back to *the first sensor of any kind*
+      as "CPU temp" when no CPU-looking label matches — that can be an NVMe or
+      Wi-Fi sensor. Prefer showing nothing (fail honest, like §10).
+- [ ] The "cpu" substring match is broad; check real labels on this machine
+      (`sensors` / sysinfo labels) and tighten.
+- [ ] `BatteryInfo.present` is always `true` when `Some` — redundant field.
+- [ ] Battery/thermals are Linux-only (`cfg(target_os = "linux")`); on
+      Windows/macOS battery is always `None`. Fine for now, but document it.
+- [ ] Then: merge `--no-ff` into `dev`, update CHANGELOG, push (ask the
+      maintainer first).
+
+**Next after that:** §8 items 2–3 — verify the release workflow, cut v1.2.0.

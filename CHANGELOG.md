@@ -8,10 +8,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- Sound design — eDEX-style sound effects on the Web Audio API, with pitch
+  variance and rate throttling; no cost while idle.
+- Network detail — TCP ping, public and local IP, interface detection, and a
+  pulsing geolocation pin on the globe.
+- Command palette and settings GUI (Ctrl+Shift+C) — fuzzy search, keyboard
+  navigation, live font and volume sliders, persisted to the TOML config.
 - `AGENTS.md` — canonical handoff for AI assistants and new contributors, with
   `CLAUDE.md` and `GEMINI.md` as pointers so every tool works from one brief.
 - `tools/measure_idle.py` and `tools/grab_window.py` — idle-cost measurement and
   non-intrusive window capture, so performance claims stay reproducible.
+
+### Performance
+- StatsPanel render cost — Sparkline moved from SVG strings to Canvas 2D, and
+  bar transitions from `width`/`height` to composited `transform`, removing
+  per-second layout reflows.
 
 ### Fixed
 - CI had been red since August, for two reasons that predated this work. The
@@ -25,8 +36,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   dependency list.
 
 ### In Progress
+- Hardware telemetry in the stats panel — CPU/GPU temperature, load average,
+  per-mount disk capacity, battery, uptime (`feature/hardware-telemetry`).
 - Phase 6: hardening, signing, public release
-- StatsPanel render cost — the largest remaining idle-CPU item
 
 ---
 
