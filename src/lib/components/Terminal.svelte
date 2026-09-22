@@ -3,6 +3,7 @@
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { WebLinksAddon } from '@xterm/addon-web-links';
+  import { openExternal } from '$lib/links';
   import { WebglAddon } from '@xterm/addon-webgl';
   import { ptySpawn, ptyWrite, ptyResize, ptyClose, onPtyOutput } from '$lib/ipc';
   import { currentTheme } from '$lib/stores/theme';
@@ -59,6 +60,8 @@
       fontFamily: '"JetBrains Mono", "Fira Code", monospace',
       theme: buildXtermTheme(theme),
       allowProposedApi: true,
+      // OSC 8 hyperlinks. See links.ts for why these never use window.open().
+      linkHandler: { activate: (_e, uri) => { openExternal(uri).catch(() => {}); } },
     });
 
     // Returning false stops xterm handling the key, and — crucially — stops it
@@ -67,7 +70,7 @@
 
     fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-    term.loadAddon(new WebLinksAddon());
+    term.loadAddon(new WebLinksAddon((_e, uri) => { openExternal(uri).catch(() => {}); }));
     term.open(container);
 
     // Render glyphs on the GPU rather than building DOM rows. Must come after
