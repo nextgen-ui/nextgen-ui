@@ -349,14 +349,32 @@ Findings and fixes, one commit each, all on `fix/security-hardening`
 Gates green: 12 Rust, 23 TS, `cargo audit` 0 vulnerabilities, check 0/0, clippy. Release build OK and embeds
 the CSP.
 
-**Not yet verified — do this before merging:**
-- [ ] **Run the release build and exercise it with the CSP on**: terminal
-      renders (WebGL + DOM fallback), themes/inline styles apply, sounds play,
-      globe draws, geo toggle works both ways, a link click opens the browser.
-      A CSP violation shows as a blank or unstyled panel. `devCsp` (for
-      `pnpm tauri dev`) is also untested.
-- [ ] Close a tab and confirm no `Z` bash is left (`ps -o pid,stat,comm
-      --ppid $(pgrep -x nextgen-ui)`).
+**Runtime-verified 2026-09-22** (release build, Xvfb `:99`, launched from
+the maintainer's SSH shell):
+- [x] With the CSP on: terminal + PTY spawn, themes and inline styles, canvas
+      sparklines, globe, ping/LAN IP over IPC, audio files load (GStreamer
+      parsed them). No public IP or location shown — geo is off by default.
+- [x] Ctrl+Shift+T then Ctrl+Shift+W: the tab's bash is gone from `/proc`
+      entirely, not `Z`. Typing `exit` in a tab: also reaped.
+- [ ] Not exercised: the geo toggle in the running UI (unit-tested), a link
+      click (no browser over SSH; `links.ts` unit-tested), and `devCsp`.
+
+**Found while verifying (pre-existing, not a regression):** when a shell
+exits, its tab stays open showing `exit` — the frontend is never told.
+Emit a `pty_exit` event from the reader thread and close the tab or print
+`[process exited]`.
+
+**How to run the GUI on this machine — read before trying.** The maintainer
+works over SSH; there is no desktop session for `hack5`. Xvfb works, but
+**WebKit cannot start its renderer from inside Claude Code's command
+sandbox** (bwrap needs namespaces): the window stays 10×10 and no
+WebKitWebProcess appears — `dev` fails identically, so it is not the app.
+Start `Xvfb :99 -screen 0 1280x800x24 -nolisten tcp`, ask the maintainer to
+run `DISPLAY=:99 ./src-tauri/target/release/nextgen-ui &` from their own
+shell, then screenshot/drive `:99` from here (python-xlib + XTEST; `:99`
+is virtual, nobody's real screen). **Idle-CPU numbers from Xvfb are not
+comparable to §7**: no GPU access over SSH, so WebKit software-renders and
+reads ~80%.
 - [ ] Merge order: this branch and `feature/hardware-telemetry` both touch
       nothing in common except docs, so either order works.
 
