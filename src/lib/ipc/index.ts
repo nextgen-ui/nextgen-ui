@@ -43,6 +43,11 @@ export async function onPtyOutput(
   return listen<{ session_id: string; data: string }>('pty_output', (e) => callback(e.payload));
 }
 
+/** A shell exited on its own (`exit`, Ctrl+D). Not sent for pty_close. */
+export async function onPtyExit(callback: (payload: { session_id: string }) => void) {
+  return listen<{ session_id: string }>('pty_exit', (e) => callback(e.payload));
+}
+
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 export interface SystemStats {

@@ -11,6 +11,8 @@
   import { isAppShortcut } from '$lib/shortcuts';
   import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
   import { initNetworkService, setGeoEnabled } from '$lib/stores/network';
+  import { closeTab as closeTabState, shellExited, type Tab } from '$lib/tabs';
+  import { onPtyExit } from '$lib/ipc';
   import { loadConfig, appConfig } from '$lib/stores/config';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
 
@@ -41,7 +43,7 @@
     playSound('panels');
   }
 
-  let tabs: { id: string; label: string }[] = [{ id: 'main', label: 'SHELL 1' }];
+  let tabs: Tab[] = [{ id: 'main', label: 'SHELL 1' }];
   let activeTab = 'main';
   let tabCounter = 2;
 
@@ -63,9 +65,11 @@
   function closeTab(id: string) {
     if (tabs.length === 1) return;
     playSound('folder');
-    const idx = tabs.findIndex((t) => t.id === id);
-    tabs = tabs.filter((t) => t.id !== id);
-    activeTab = tabs[Math.max(0, idx - 1)].id;
+    ({ tabs, activeTab } = closeTabState({ tabs, activeTab }, id));
+  }
+
+  function onShellExit(id: string) {
+    ({ tabs, activeTab } = shellExited({ tabs, activeTab }, id, `shell-${tabCounter++}`));
   }
 
   function toggleFileManager() {
@@ -157,6 +161,8 @@
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
   }
 
+  let unlistenExit: (() => void) | null = null;
+
   let theme = $currentTheme;
   const unsubTheme = currentTheme.subscribe((t) => { theme = t; });
 
@@ -170,6 +176,7 @@
     uptimeInterval = setInterval(() => { uptime++; }, 1000);
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('keydown', handleCaptureKeydown, true);
+    onPtyExit(({ session_id }) => onShellExit(session_id)).then((u) => { unlistenExit = u; });
   });
 
   onDestroy(() => {
@@ -178,6 +185,7 @@
     unsubTheme();
     window.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('keydown', handleCaptureKeydown, true);
+    unlistenExit?.();
   });
 </script>
 

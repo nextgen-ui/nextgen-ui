@@ -29,6 +29,11 @@ impl PtyState {
 }
 
 #[derive(Clone, serde::Serialize)]
+struct PtyExitPayload {
+    session_id: String,
+}
+
+#[derive(Clone, serde::Serialize)]
 struct PtyOutputPayload {
     session_id: String,
     data: String,
@@ -90,12 +95,25 @@ pub fn pty_spawn(
                 Err(_) => break,
             }
         }
+        // A character cut off by EOF will never complete; show what there is.
+        if !pending.is_empty() {
+            let _ = app_handle.emit("pty_output", PtyOutputPayload {
+                session_id: emit_session_id.clone(),
+                data: String::from_utf8_lossy(&pending).into_owned(),
+            });
+        }
         // The shell exited on its own (`exit`, Ctrl+D). If pty_close has not
-        // already taken the session, reap it here so it does not linger.
+        // already taken the session, reap it here so it does not linger, and
+        // tell the frontend so it can close the tab — before this, the tab
+        // stayed open on a dead shell. Not sent after pty_close: that tab is
+        // already gone.
         let session = app_handle.state::<PtyState>().sessions.lock()
             .ok()
             .and_then(|mut s| s.remove(&emit_session_id));
-        if let Some(session) = session { shutdown(session); }
+        if let Some(session) = session {
+            shutdown(session);
+            let _ = app_handle.emit("pty_exit", PtyExitPayload { session_id: emit_session_id });
+        }
     });
     Ok(())
 }
