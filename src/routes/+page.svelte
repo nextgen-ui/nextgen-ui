@@ -10,7 +10,9 @@
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
   import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
-  import { initNetworkService } from '$lib/stores/network';
+  import { initNetworkService, setGeoEnabled } from '$lib/stores/network';
+  import { closeTab as closeTabState, shellExited, type Tab } from '$lib/tabs';
+  import { onPtyExit } from '$lib/ipc';
   import { loadConfig, appConfig } from '$lib/stores/config';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
 
@@ -41,7 +43,7 @@
     playSound('panels');
   }
 
-  let tabs: { id: string; label: string }[] = [{ id: 'main', label: 'SHELL 1' }];
+  let tabs: Tab[] = [{ id: 'main', label: 'SHELL 1' }];
   let activeTab = 'main';
   let tabCounter = 2;
 
@@ -63,9 +65,11 @@
   function closeTab(id: string) {
     if (tabs.length === 1) return;
     playSound('folder');
-    const idx = tabs.findIndex((t) => t.id === id);
-    tabs = tabs.filter((t) => t.id !== id);
-    activeTab = tabs[Math.max(0, idx - 1)].id;
+    ({ tabs, activeTab } = closeTabState({ tabs, activeTab }, id));
+  }
+
+  function onShellExit(id: string) {
+    ({ tabs, activeTab } = shellExited({ tabs, activeTab }, id, `shell-${tabCounter++}`));
   }
 
   function toggleFileManager() {
@@ -157,18 +161,22 @@
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
   }
 
+  let unlistenExit: (() => void) | null = null;
+
   let theme = $currentTheme;
   const unsubTheme = currentTheme.subscribe((t) => { theme = t; });
 
   onMount(() => {
     applyThemeCssVars($currentTheme);
-    loadConfig();
+    // Also clears any location cached before geolocation became opt-in.
+    loadConfig().then((cfg) => setGeoEnabled(cfg.geoLookup));
     initNetworkService();
     runBoot();
     clockInterval = setInterval(() => { now = new Date(); }, 1000);
     uptimeInterval = setInterval(() => { uptime++; }, 1000);
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('keydown', handleCaptureKeydown, true);
+    onPtyExit(({ session_id }) => onShellExit(session_id)).then((u) => { unlistenExit = u; });
   });
 
   onDestroy(() => {
@@ -177,6 +185,7 @@
     unsubTheme();
     window.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('keydown', handleCaptureKeydown, true);
+    unlistenExit?.();
   });
 </script>
 
@@ -251,7 +260,7 @@
     {/if}
     <section class="terminal-section">
       <div class="tab-bar">
-        {#each tabs as tab}
+        {#each tabs as tab (tab.id)}
           <div class="tab-wrap" class:active={activeTab === tab.id}>
             <button class="tab" class:solo={tabs.length === 1} on:click={() => selectTab(tab.id)}>
               {tab.label}
@@ -265,7 +274,11 @@
         <span class="tab-hint">Ctrl+Shift+ C·T·W·B·P·K·G·S·F</span>
       </div>
       <div class="terminal-container">
-        {#each tabs as tab}
+        <!-- Keyed by id: each Terminal owns one PTY session. Unkeyed, Svelte
+             reused instances by position, so closing a tab other than the
+             last destroyed the wrong terminal and left the others typing
+             into their neighbour's shell. -->
+        {#each tabs as tab (tab.id)}
           <div class="terminal-slot" class:hidden={activeTab !== tab.id}>
             <Terminal sessionId={tab.id} active={activeTab === tab.id} />
           </div>

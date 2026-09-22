@@ -13,6 +13,11 @@ pub struct AppConfig {
     pub audio_enabled: bool,
     #[serde(default = "default_volume")]
     pub audio_volume: f32,
+    /// Look up public IP and location from a third-party service. Off unless
+    /// the user turns it on: it sends the user's IP to that service on every
+    /// launch, and puts their city and IP on a screen people screenshot.
+    #[serde(default)]
+    pub geo_lookup: bool,
 }
 
 fn default_true() -> bool { true }
@@ -27,6 +32,7 @@ impl Default for AppConfig {
             stats_width: 230,
             audio_enabled: true,
             audio_volume: 0.6,
+            geo_lookup: false,
         }
     }
 }
@@ -68,6 +74,14 @@ mod tests {
         assert_eq!(cfg.font_size, 14);
         assert!(cfg.audio_enabled);
         assert!((cfg.audio_volume - 0.6).abs() < 0.001);
+        assert!(!cfg.geo_lookup, "geolocation must be opt-in");
+    }
+
+    #[test]
+    fn config_from_before_geo_setting_keeps_geo_off() {
+        let old = "theme = \"default\"\nshell = \"\"\nfontSize = 14\nstatsWidth = 230\n";
+        let cfg: AppConfig = toml::from_str(old).expect("old config still parses");
+        assert!(!cfg.geo_lookup);
     }
 
     #[test]

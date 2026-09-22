@@ -2,7 +2,7 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct PtySession {
     writer: Box<dyn Write + Send>,
@@ -10,6 +10,9 @@ pub struct PtySession {
     /// Pid of the shell itself. When it is the foreground process group, the
     /// user is at a prompt rather than inside a program.
     shell_pid: Option<u32>,
+    /// Held so the shell can be reaped. Dropping it without `wait()` left a
+    /// zombie in the process table for every tab closed during the session.
+    child: Box<dyn portable_pty::Child + Send + Sync>,
 }
 
 #[derive(Default)]
@@ -23,6 +26,11 @@ impl PtyState {
             sessions: Mutex::new(HashMap::new()),
         }
     }
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PtyExitPayload {
+    session_id: String,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -57,22 +65,28 @@ pub fn pty_spawn(
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let shell_pid = child.process_id();
+    // Keeping the slave open would stop the reader ever seeing EOF when the
+    // shell exits, since this process would still hold the other end.
+    drop(pair.slave);
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     state.sessions.lock().map_err(|e| e.to_string())?
-        .insert(session_id.clone(), PtySession { writer, master: pair.master, shell_pid });
+        .insert(session_id.clone(), PtySession { writer, master: pair.master, shell_pid, child });
 
     let app_handle = app.clone();
     let emit_session_id = session_id.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
-                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                    pending.extend_from_slice(&buf[..n]);
+                    let data = take_utf8(&mut pending);
+                    if data.is_empty() { continue; }
                     let _ = app_handle.emit("pty_output", PtyOutputPayload {
                         session_id: emit_session_id.clone(),
                         data,
@@ -80,6 +94,25 @@ pub fn pty_spawn(
                 }
                 Err(_) => break,
             }
+        }
+        // A character cut off by EOF will never complete; show what there is.
+        if !pending.is_empty() {
+            let _ = app_handle.emit("pty_output", PtyOutputPayload {
+                session_id: emit_session_id.clone(),
+                data: String::from_utf8_lossy(&pending).into_owned(),
+            });
+        }
+        // The shell exited on its own (`exit`, Ctrl+D). If pty_close has not
+        // already taken the session, reap it here so it does not linger, and
+        // tell the frontend so it can close the tab — before this, the tab
+        // stayed open on a dead shell. Not sent after pty_close: that tab is
+        // already gone.
+        let session = app_handle.state::<PtyState>().sessions.lock()
+            .ok()
+            .and_then(|mut s| s.remove(&emit_session_id));
+        if let Some(session) = session {
+            shutdown(session);
+            let _ = app_handle.emit("pty_exit", PtyExitPayload { session_id: emit_session_id });
         }
     });
     Ok(())
@@ -239,8 +272,41 @@ pub fn pty_close(
     state: tauri::State<'_, PtyState>,
     session_id: String,
 ) -> Result<(), String> {
-    state.sessions.lock().map_err(|e| e.to_string())?.remove(&session_id);
+    let session = state.sessions.lock().map_err(|e| e.to_string())?.remove(&session_id);
+    // Off the IPC thread: kill() allows the shell a short grace period.
+    if let Some(session) = session { std::thread::spawn(move || shutdown(session)); }
     Ok(())
+}
+
+/// Hang up the shell and reap it. `kill()` sends SIGHUP, then SIGKILL if the
+/// shell is still alive after a grace period, so a shell that traps HUP cannot
+/// keep this thread waiting.
+fn shutdown(mut session: PtySession) {
+    let _ = session.child.kill();
+    let _ = session.child.wait();
+}
+
+/// Drain the longest valid UTF-8 prefix of `pending`, leaving a trailing
+/// partial character for the next read. Decoding each 4 KB read on its own
+/// turned any multi-byte character that straddled a read boundary into U+FFFD.
+/// Bytes that are invalid outright, rather than incomplete, are replaced.
+fn take_utf8(pending: &mut Vec<u8>) -> String {
+    let mut out = String::new();
+    loop {
+        match std::str::from_utf8(pending) {
+            Ok(s) => { out.push_str(s); pending.clear(); return out; }
+            Err(e) => {
+                let valid = e.valid_up_to();
+                // SAFETY: from_utf8 just verified this prefix.
+                out.push_str(unsafe { std::str::from_utf8_unchecked(&pending[..valid]) });
+                match e.error_len() {
+                    // Incomplete sequence at the end — wait for more bytes.
+                    None => { pending.drain(..valid); return out; }
+                    Some(bad) => { out.push('\u{FFFD}'); pending.drain(..valid + bad); }
+                }
+            }
+        }
+    }
 }
 
 fn default_shell() -> String {
@@ -255,6 +321,29 @@ fn default_shell() -> String {
     #[cfg(not(target_os = "windows"))]
     {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
+}
+
+#[cfg(test)]
+mod utf8_tests {
+    use super::take_utf8;
+
+    #[test]
+    fn split_multibyte_character_is_held_until_complete() {
+        let bytes = "a€b".as_bytes(); // € is 3 bytes
+        let mut pending = bytes[..2].to_vec();
+        assert_eq!(take_utf8(&mut pending), "a");
+        assert_eq!(pending.len(), 1, "partial character must be kept");
+        pending.extend_from_slice(&bytes[2..]);
+        assert_eq!(take_utf8(&mut pending), "€b");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn invalid_bytes_are_replaced_not_held() {
+        let mut pending = vec![b'x', 0xFF, b'y'];
+        assert_eq!(take_utf8(&mut pending), "x\u{FFFD}y");
+        assert!(pending.is_empty(), "invalid bytes must not stall the stream");
     }
 }
 
@@ -368,5 +457,30 @@ mod tests {
             !st.canonical_secret && !st.program_secret,
             "an ordinary raw-mode program must not be secret: {st:?}"
         );
+    }
+
+    #[test]
+    fn closed_session_is_reaped_not_left_a_zombie() {
+        let pair = native_pty_system()
+            .openpty(PtySize { rows: 24, cols: 80, pixel_width: 0, pixel_height: 0 })
+            .expect("openpty");
+        let mut cmd = CommandBuilder::new("/bin/bash");
+        cmd.arg("-i");
+        let child = pair.slave.spawn_command(cmd).expect("spawn");
+        let pid = child.process_id().expect("pid");
+        let session = PtySession {
+            writer: pair.master.take_writer().expect("writer"),
+            master: pair.master,
+            shell_pid: Some(pid),
+            child,
+        };
+        std::thread::sleep(Duration::from_millis(300));
+
+        shutdown(session);
+
+        // Reaped means gone from /proc entirely; a zombie would still be listed
+        // with state Z.
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat"));
+        assert!(stat.is_err(), "shell {pid} still in the process table: {stat:?}");
     }
 }

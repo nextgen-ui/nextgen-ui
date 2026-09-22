@@ -4,7 +4,8 @@ Canonical context for any AI assistant or new contributor working on this
 repo. `CLAUDE.md` and `GEMINI.md` point here; keep this file as the single
 source of truth and update it as things change.
 
-Last updated: 2026-09-22, on `dev` after `b7a88b4` (command palette merge).
+Last updated: 2026-09-22. Open branches: `fix/security-hardening`,
+`feature/hardware-telemetry` (both local, unmerged, unpushed).
 **Starting a new session? Read §2 and §11 first** — §11 is the running handoff
 log and says exactly what is in flight and what to do next.
 
@@ -235,6 +236,7 @@ command palette + settings GUI. CI confirmed green on `dev` since 2026-09-04.
 
 Remaining, roughly in priority order:
 
+0. **Verify and merge `fix/security-hardening`** — see §11 checklist.
 1. **Finish hardware telemetry** (`feature/hardware-telemetry`) — see §11 for
    the exact checklist. Mostly needs an idle-CPU measurement and polish.
 2. **Release workflow is untested since the CI fix.** The `Release` run for tag
@@ -326,6 +328,68 @@ Each of these cost time and is not obvious from the code.
 Newest first. Every session appends an entry here before stopping: what was
 done, what is left half-finished, and the next concrete step. Keep entries
 short; move anything durable into the sections above.
+
+### 2026-09-22 (later) — security review + fixes on `fix/security-hardening`
+
+Internal code review of every IPC command, the Tauri config, CI and deps.
+Findings and fixes, one commit each, all on `fix/security-hardening`
+(branched from `dev`, **not merged, not pushed**):
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | `csp: null` while the webview can drive a shell | Strict CSP in `tauri.conf.json` |
+| 2 | Geo lookup automatic, HTTP fallback, IP/city on screen | Opt-in `geoLookup` (Settings → Privacy), HTTPS only, cache cleared when off |
+| 3 | Sync `measure_ping` blocked main thread up to 4.5s offline | `net` + `fs_list_dir` async via `spawn_blocking` |
+| 4 | Zombie shell per closed tab (verified: state `Z`) | Session owns `Child`; reaped on close and on shell exit |
+| 5 | Terminal links used `window.open`, any scheme | `src/lib/links.ts`, opener plugin, http(s) only |
+| 6 | 9 npm advisories (3 high), all build tooling | `pnpm update`; 1 low left (`cookie`, server-only) |
+| 6b | `cargo audit`: 2 quick-xml DoS via plist | `cargo update -p plist`; only unmaintained/unsound *warnings* remain, transitive via Tauri's GTK stack |
+| — | UTF-8 split across 4 KB reads → U+FFFD | `take_utf8` in `pty/mod.rs` |
+
+Gates green: 12 Rust, 23 TS, `cargo audit` 0 vulnerabilities, check 0/0, clippy. Release build OK and embeds
+the CSP.
+
+**Runtime-verified 2026-09-22** (release build, Xvfb `:99`, launched from
+the maintainer's SSH shell):
+- [x] With the CSP on: terminal + PTY spawn, themes and inline styles, canvas
+      sparklines, globe, ping/LAN IP over IPC, audio files load (GStreamer
+      parsed them). No public IP or location shown — geo is off by default.
+- [x] Ctrl+Shift+T then Ctrl+Shift+W: the tab's bash is gone from `/proc`
+      entirely, not `Z`. Typing `exit` in a tab: also reaped.
+- [ ] Not exercised: the geo toggle in the running UI (unit-tested), a link
+      click (no browser over SSH; `links.ts` unit-tested), and `devCsp`.
+
+**Found while verifying, fixed and live-tested (`9fbf803`, next commit):**
+- A shell exiting left its tab open on a dead terminal → `pty_exit` event;
+  tab closes, last tab gets a fresh shell.
+- **Tab loops were unkeyed** → closing any tab but the last destroyed the
+  wrong terminal and cross-wired the rest to their neighbours' shells.
+  Keyed by id; verified with `tty` in each surviving tab.
+- Terminal did not refocus when its tab became active → it does now.
+- Closing a background tab switched the user away → selection kept.
+- Still open (minor): clicking a tab's ✕ leaves focus on the button, so
+  typing needs a click back into the terminal.
+
+**How to run the GUI on this machine — read before trying.** The maintainer
+works over SSH; there is no desktop session for `hack5`. Xvfb works, but
+**WebKit cannot start its renderer from inside Claude Code's command
+sandbox** (bwrap needs namespaces): the window stays 10×10 and no
+WebKitWebProcess appears — `dev` fails identically, so it is not the app.
+Start `Xvfb :99 -screen 0 1280x800x24 -nolisten tcp`, ask the maintainer to
+run `DISPLAY=:99 ./src-tauri/target/release/nextgen-ui &` from their own
+shell, then screenshot/drive `:99` from here (python-xlib + XTEST; `:99`
+is virtual, nobody's real screen). **Idle-CPU numbers from Xvfb are not
+comparable to §7**: no GPU access over SSH, so WebKit software-renders and
+reads ~80%.
+- [ ] Merge order: this branch and `feature/hardware-telemetry` both touch
+      nothing in common except docs, so either order works.
+
+**Residual, accepted for now:** `style-src 'unsafe-inline'`; `fs_list_dir`
+and `kill_process` are unrestricted by design (user-level local app) — the
+CSP is what protects them. The Settings "Shell Executable Path" field is
+saved but **ignored** by the backend (`default_shell()` reads `$SHELL`);
+either wire it up or remove it — if wired, it becomes a config-file →
+exec path, so validate it.
 
 ### 2026-09-22 — resumed after an 18-day gap
 

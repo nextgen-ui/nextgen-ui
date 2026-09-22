@@ -8,6 +8,8 @@ export interface AppConfig {
   statsWidth: number;
   audioEnabled: boolean;
   audioVolume: number;
+  /** Opt-in: see geo_lookup in src-tauri/src/config/mod.rs. */
+  geoLookup: boolean;
 }
 
 export const defaults: AppConfig = {
@@ -17,6 +19,7 @@ export const defaults: AppConfig = {
   statsWidth: 230,
   audioEnabled: true,
   audioVolume: 0.6,
+  geoLookup: false,
 };
 
 export const appConfig = writable<AppConfig>(defaults);
