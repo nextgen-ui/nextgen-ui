@@ -359,10 +359,16 @@ the maintainer's SSH shell):
 - [ ] Not exercised: the geo toggle in the running UI (unit-tested), a link
       click (no browser over SSH; `links.ts` unit-tested), and `devCsp`.
 
-**Found while verifying (pre-existing, not a regression):** when a shell
-exits, its tab stays open showing `exit` — the frontend is never told.
-Emit a `pty_exit` event from the reader thread and close the tab or print
-`[process exited]`.
+**Found while verifying, fixed and live-tested (`9fbf803`, next commit):**
+- A shell exiting left its tab open on a dead terminal → `pty_exit` event;
+  tab closes, last tab gets a fresh shell.
+- **Tab loops were unkeyed** → closing any tab but the last destroyed the
+  wrong terminal and cross-wired the rest to their neighbours' shells.
+  Keyed by id; verified with `tty` in each surviving tab.
+- Terminal did not refocus when its tab became active → it does now.
+- Closing a background tab switched the user away → selection kept.
+- Still open (minor): clicking a tab's ✕ leaves focus on the button, so
+  typing needs a click back into the terminal.
 
 **How to run the GUI on this machine — read before trying.** The maintainer
 works over SSH; there is no desktop session for `hack5`. Xvfb works, but

@@ -24,7 +24,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   bar transitions from `width`/`height` to composited `transform`, removing
   per-second layout reflows.
 
+### Security
+- Content Security Policy enforced; it was `null` while the webview can
+  drive a shell.
+- Geolocation is opt-in (Settings → Privacy) and HTTPS-only; previously it
+  ran on every launch with a plain-HTTP fallback and put the user's public
+  IP and city on screen.
+- Terminal links open in the system browser, http(s) only.
+- Dependency advisories cleared: npm 9 → 1 low (server-only), cargo 2 → 0.
+
 ### Fixed
+- Closing a tab other than the last destroyed the wrong terminal and left
+  the rest typing into their neighbours' shells (unkeyed tab loop).
+- Every closed tab left a zombie shell until the app exited.
+- A shell exiting (`exit`, Ctrl+D) left its tab open on a dead terminal;
+  the tab now closes, and the last one is replaced with a fresh shell.
+- A terminal did not take focus when its tab became active.
+- Closing a background tab switched the user away from their current one.
+- The UI could freeze for up to 4.5s at a time while offline (ping ran on
+  the main thread); directory listing had the same problem.
+- Multi-byte characters split across PTY reads rendered as U+FFFD.
 - CI had been red since August, for two reasons that predated this work. The
   Rust job never installed the Linux system dependencies, so `cargo clippy` and
   `cargo test` could not build Tauri at all; and `cache: pnpm` in
