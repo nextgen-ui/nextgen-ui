@@ -11,12 +11,23 @@ pub struct FsEntry {
     modified: String,
 }
 
+// Async + spawn_blocking for the same reason as net: a sync command runs on
+// the main thread, and listing a large or slow (network-mounted) directory
+// would freeze the UI while it ran.
 #[tauri::command]
-pub fn fs_list_dir(path: String) -> Result<Vec<FsEntry>, String> {
-    let entries = fs::read_dir(&path).map_err(|e| e.to_string())?;
+pub async fn fs_list_dir(path: String) -> Result<Vec<FsEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_dir(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn list_dir(path: &str) -> Result<Vec<FsEntry>, String> {
+    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     let mut result = Vec::new();
     for entry in entries.flatten() {
-        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        // Skip an entry whose metadata cannot be read (removed mid-listing,
+        // permission denied) rather than failing the whole directory.
+        let Ok(metadata) = entry.metadata() else { continue };
         let name = entry.file_name().to_string_lossy().to_string();
         let full_path = entry.path().to_string_lossy().to_string();
         let size = if metadata.is_file() { metadata.len() } else { 0 };
