@@ -371,7 +371,7 @@ the maintainer's SSH shell):
   typing needs a click back into the terminal.
 
 **How to run the GUI on this machine — read before trying.** The maintainer
-works over SSH; there is no desktop session for `hack5`. Xvfb works, but
+works over SSH; there is no desktop session for the dev account. Xvfb works, but
 **WebKit cannot start its renderer from inside Claude Code's command
 sandbox** (bwrap needs namespaces): the window stays 10×10 and no
 WebKitWebProcess appears — `dev` fails identically, so it is not the app.
