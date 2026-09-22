@@ -129,7 +129,9 @@
     setGeoEnabled(enabled);
     // Persisted straight away rather than on Save: turning a privacy setting
     // off must not quietly revert on the next launch.
-    saveConfig({ ...$appConfig, geoLookup: enabled });
+    const next = { ...$appConfig, geoLookup: enabled };
+    appConfig.set(next); // so the switch shows the truth even if the save fails
+    saveConfig(next).then((ok) => { if (!ok) saveStatus = 'ERROR SAVING CONFIG'; });
     playSound(enabled ? 'granted' : 'denied');
   }
 

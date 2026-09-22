@@ -50,7 +50,12 @@
     const lonDir = g.lon >= 0 ? 'E' : 'W';
     geoCoordsText = `${Math.abs(g.lat).toFixed(1)}°${latDir} ${Math.abs(g.lon).toFixed(1)}°${lonDir}`;
   } else {
+    // Geolocation switched off: forget everything, not just the pin, or the
+    // country would stay in the header until restart.
     hasGeo = false;
+    geoCity = '';
+    geoCountry = '';
+    geoCoordsText = '';
   }
 
   onMount(() => {
