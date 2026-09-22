@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -125,6 +125,12 @@
   });
 
   export function focus() { term?.focus(); }
+
+  // Take keyboard focus whenever this tab becomes the visible one, not only on
+  // mount. Before, after a tab closed or on switching tabs, typing went nowhere
+  // until the terminal was clicked. tick() lets the slot lose display:none
+  // first — a hidden element cannot take focus.
+  $: if (active && term) tick().then(() => term?.focus());
 </script>
 
 <div class="terminal-wrap" class:hidden={!active}>

@@ -260,7 +260,7 @@
     {/if}
     <section class="terminal-section">
       <div class="tab-bar">
-        {#each tabs as tab}
+        {#each tabs as tab (tab.id)}
           <div class="tab-wrap" class:active={activeTab === tab.id}>
             <button class="tab" class:solo={tabs.length === 1} on:click={() => selectTab(tab.id)}>
               {tab.label}
@@ -274,7 +274,11 @@
         <span class="tab-hint">Ctrl+Shift+ C·T·W·B·P·K·G·S·F</span>
       </div>
       <div class="terminal-container">
-        {#each tabs as tab}
+        <!-- Keyed by id: each Terminal owns one PTY session. Unkeyed, Svelte
+             reused instances by position, so closing a tab other than the
+             last destroyed the wrong terminal and left the others typing
+             into their neighbour's shell. -->
+        {#each tabs as tab (tab.id)}
           <div class="terminal-slot" class:hidden={activeTab !== tab.id}>
             <Terminal sessionId={tab.id} active={activeTab === tab.id} />
           </div>
