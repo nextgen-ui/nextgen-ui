@@ -3,7 +3,7 @@
   import { themes, currentTheme, setTheme } from '$lib/stores/theme';
   import { soundState, toggleSound, setVolume, playSound } from '$lib/audio';
   import { appConfig, saveConfig, type AppConfig } from '$lib/stores/config';
-  import { refreshPing, refreshGeo } from '$lib/stores/network';
+  import { refreshPing, refreshGeo, setGeoEnabled, isGeoEnabled } from '$lib/stores/network';
 
   export let show = false;
   export let activeTab: 'commands' | 'settings' = 'commands';
@@ -64,7 +64,10 @@
 
     // Diagnostics & Net
     { id: 'net-ping', title: 'Ping Test (Probe 1.1.1.1 Latency)', category: 'NETWORK', action: () => { refreshPing(); playSound('granted'); } },
-    { id: 'net-geo', title: 'Refresh Geolocation Coordinates', category: 'NETWORK', action: () => { refreshGeo(); playSound('granted'); } },
+    { id: 'net-geo', title: 'Refresh Geolocation Coordinates', category: 'NETWORK', action: () => {
+      if (!isGeoEnabled()) { playSound('denied'); return; }
+      refreshGeo(); playSound('granted');
+    } },
 
     // Settings
     { id: 'open-settings', title: 'Open Settings & Preferences GUI', category: 'CONFIG', action: () => { activeTab = 'settings'; } },
@@ -118,6 +121,16 @@
       configCopy.fontSize = size;
       return { ...c, fontSize: size };
     });
+  }
+
+  function toggleGeo() {
+    const enabled = !$appConfig.geoLookup;
+    configCopy.geoLookup = enabled;
+    setGeoEnabled(enabled);
+    // Persisted straight away rather than on Save: turning a privacy setting
+    // off must not quietly revert on the next launch.
+    saveConfig({ ...$appConfig, geoLookup: enabled });
+    playSound(enabled ? 'granted' : 'denied');
   }
 
   async function handleSaveConfig() {
@@ -321,6 +334,27 @@
                 on:input={(e) => setVolume(parseFloat(e.currentTarget.value))}
               />
               <span class="val-tag">{Math.round($soundState.volume * 100)}%</span>
+            </div>
+          </div>
+
+          <!-- Privacy -->
+          <div class="settings-group">
+            <div class="group-title">⛨ PRIVACY</div>
+            <div class="form-row">
+              <label for="geo-toggle-btn">Public IP &amp; Geolocation Lookup:</label>
+              <button
+                id="geo-toggle-btn"
+                type="button"
+                class="toggle-switch"
+                class:on={$appConfig.geoLookup}
+                on:click={toggleGeo}
+              >
+                {$appConfig.geoLookup ? 'ENABLED' : 'DISABLED'}
+              </button>
+            </div>
+            <div class="privacy-note">
+              When enabled, your IP is sent to ipwho.is to place you on the globe,
+              and your public IP and city are shown on screen.
             </div>
           </div>
 
@@ -571,6 +605,8 @@
     flex-direction: column;
     gap: 16px;
   }
+
+  .privacy-note { font-size: 9px; color: var(--fg-dim, #c8d8f066); line-height: 1.4; }
 
   .settings-group {
     display: flex;

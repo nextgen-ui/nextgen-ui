@@ -10,6 +10,7 @@ test('appConfig defaults with valid initial structure', () => {
   assert.equal(cfg.statsWidth, 230);
   assert.equal(cfg.audioEnabled, true);
   assert.equal(cfg.audioVolume, 0.6);
+  assert.equal(cfg.geoLookup, false, 'geolocation must be opt-in');
 });
 
 test('loadConfig and saveConfig run safely in headless node environment', async () => {

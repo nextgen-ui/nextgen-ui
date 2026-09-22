@@ -10,7 +10,7 @@
   import { themes, currentTheme, setTheme, applyThemeCssVars } from '$lib/stores/theme';
   import { isAppShortcut } from '$lib/shortcuts';
   import { soundState, toggleSound, playSound, playKeySound } from '$lib/audio';
-  import { initNetworkService } from '$lib/stores/network';
+  import { initNetworkService, setGeoEnabled } from '$lib/stores/network';
   import { loadConfig, appConfig } from '$lib/stores/config';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
 
@@ -162,7 +162,8 @@
 
   onMount(() => {
     applyThemeCssVars($currentTheme);
-    loadConfig();
+    // Also clears any location cached before geolocation became opt-in.
+    loadConfig().then((cfg) => setGeoEnabled(cfg.geoLookup));
     initNetworkService();
     runBoot();
     clockInterval = setInterval(() => { now = new Date(); }, 1000);
