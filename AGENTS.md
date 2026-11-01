@@ -4,8 +4,8 @@ Canonical context for any AI assistant or new contributor working on this
 repo. `CLAUDE.md` and `GEMINI.md` point here; keep this file as the single
 source of truth and update it as things change.
 
-Last updated: 2026-09-22. Open branches: `fix/security-hardening`,
-`feature/hardware-telemetry` (both local, unmerged, unpushed).
+Last updated: 2026-11-01. `dev` is pushed and in sync with `origin/dev`.
+Open branch: `feature/hardware-telemetry` (local only, unmerged, unpushed).
 **Starting a new session? Read §2 and §11 first** — §11 is the running handoff
 log and says exactly what is in flight and what to do next.
 
@@ -39,8 +39,10 @@ Do not let that regress. See §7.
 
 **v1.1.0 is tagged and pushed.** `dev` is the active branch; `main` is still at
 `v1.0.0` and was deliberately not advanced. Three features landed on `dev` after
-the tag (sound, network/geo, command palette) and are unreleased. CI on `dev`
-has been green on every push since 2026-09-04.
+the tag (sound, network/geo, command palette) and are unreleased, as are the
+security and tab fixes from `fix/security-hardening` (merged into `dev` and
+pushed 2026-11-01). CI on `dev` has been green on every push since 2026-09-04, including the
+2026-11-01 push.
 
 Built and working:
 
@@ -61,9 +63,10 @@ Built and working:
 - Command palette + settings GUI (Ctrl+Shift+C) — fuzzy search, keyboard nav,
   font/volume sliders, persisted to TOML
 
-In flight (uncommitted, then committed to `feature/hardware-telemetry` — see
-§11): hardware telemetry in the stats panel — CPU/GPU temperature, load
-average, per-mount disk capacity, battery, system uptime.
+In flight on `feature/hardware-telemetry` (local only — not on GitHub, so it
+exists on one machine; see §11): hardware telemetry in the stats panel —
+CPU/GPU temperature, load average, per-mount disk capacity, battery, system
+uptime.
 
 Not built yet — see §8.
 
@@ -138,9 +141,9 @@ Settle that as a project decision before turning it on. (Exception:
 `stats/mod.rs` was rustfmt'd wholesale in the hardware-telemetry work, so it no
 longer matches the compact style of its neighbours.)
 
-Tests, as of 2026-09-22: 9 Rust (pty termios detection ×4, config ×2, net ×2,
-stats ×1) + 20 TypeScript across `secureInput`, `audio`, and the `config`,
-`network` and `stats` stores. `pnpm test` uses node's built-in runner with `--experimental-strip-types`,
+Tests: 12 Rust (as of 2026-09-22) + 30 TypeScript (as of 2026-11-01, all
+passing) across `secureInput`, `audio`, `links`, tab handling, and the
+`config`, `network` and `stats` stores. `pnpm test` uses node's built-in runner with `--experimental-strip-types`,
 so there is no test framework dependency; that is why `tsconfig.json` sets
 `allowImportingTsExtensions` and test files import with an explicit `.ts`.
 
@@ -236,7 +239,8 @@ command palette + settings GUI. CI confirmed green on `dev` since 2026-09-04.
 
 Remaining, roughly in priority order:
 
-0. **Verify and merge `fix/security-hardening`** — see §11 checklist.
+0. ~~Verify and merge `fix/security-hardening`~~ — merged into `dev` and
+   pushed 2026-11-01; CI green on that push.
 1. **Finish hardware telemetry** (`feature/hardware-telemetry`) — see §11 for
    the exact checklist. Mostly needs an idle-CPU measurement and polish.
 2. **Release workflow is untested since the CI fix.** The `Release` run for tag
@@ -253,9 +257,10 @@ Remaining, roughly in priority order:
    system `ssh` binary.
 7. Further ideas ranked by identity-per-hour: GPU utilisation (not just temp),
    split panes.
-8. Housekeeping: stale local branch `feature/on-screen-keyboard` and remote
-   `feature/process-monitor` / `feature/visual-overhaul` are all merged — prune
-   once confirmed. Decide on `cargo fmt` (§5).
+8. Housekeeping: local branches `feature/on-screen-keyboard` and
+   `fix/security-hardening`, and remote `feature/process-monitor` /
+   `feature/visual-overhaul`, are all merged into `dev` — prune once confirmed.
+   Decide on `cargo fmt` (§5).
 
 Historical note on the CI fix, worth knowing: the Rust job never installed the
 Linux system dependencies, so clippy and tests could not build Tauri at all,
@@ -328,6 +333,34 @@ Each of these cost time and is not obvious from the code.
 Newest first. Every session appends an entry here before stopping: what was
 done, what is left half-finished, and the next concrete step. Keep entries
 short; move anything durable into the sections above.
+
+### 2026-11-01 — pushed `dev`, compared against the old GitHub build
+
+**Did:**
+- Built release binaries of local `dev` (`9c0b1f8`) and a fresh clone of
+  `origin/dev` (`b7a88b4`), ran both side by side and screenshotted them.
+  Both build and launch; idle CPU/RAM at launch was the same (~8%, ~160 MB).
+  Tests: 30/30 TS locally vs 17/17 on the old GitHub build.
+- The only visible difference: the old build shows city, coordinates and public
+  IP on the globe, while the new one hides them until geolocation is switched on
+  (Ctrl+Shift+C → Privacy). This is the intended change from the security work,
+  not a regression. The maintainer at first preferred the old look, so explain
+  the toggle if this comes up again.
+- **Pushed `dev` to GitHub** (fast-forward, 16 commits: security fixes, tab
+  fixes, dependency updates, docs).
+- Deleted local scratch branch `trial/telemetry-merge` and the `src-tauri/target`
+  build folder (12 GB). The next build is a full rebuild and takes a few minutes.
+
+**GUI note:** this time the app ran from Claude Code against the maintainer's
+desktop session on `DISPLAY=:0`, and windows rendered normally (1280×800). So the
+Xvfb workaround described in the next entry is only needed when working over
+SSH without a desktop session. When renaming the binary, its WM_CLASS changes
+too, so `tools/grab_window.py` stops finding it — find the window by PID instead.
+
+**Left open:**
+- [ ] `feature/hardware-telemetry` still exists **only on this machine**. The
+      maintainer chose not to push it as a backup. Its checklist is below.
+- [x] CI green on the 2026-11-01 push of `dev` (run 41289079713).
 
 ### 2026-09-22 (later) — security review + fixes on `fix/security-hardening`
 
